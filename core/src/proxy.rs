@@ -1,23 +1,23 @@
+use crate::cert::CertManager;
+use crate::config::DevBindConfig;
 use anyhow::Result;
+use http_body_util::{BodyExt, Full};
+use hyper::body::Bytes;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Request, Response, body::Incoming};
-use hyper_util::rt::{TokioExecutor, TokioIo};
-use hyper_util::client::legacy::Client;
+use hyper::{body::Incoming, Request, Response};
 use hyper_util::client::legacy::connect::HttpConnector;
-use http_body_util::{BodyExt, Full};
-use rustls::ServerConfig;
+use hyper_util::client::legacy::Client;
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::sign::CertifiedKey;
+use rustls::ServerConfig;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
-use crate::config::DevBindConfig;
-use crate::cert::CertManager;
-use std::path::PathBuf;
-use hyper::body::Bytes;
 
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 pub struct ProxyServer {
     config: DevBindConfig,
@@ -58,19 +58,65 @@ impl ProxyServer {
 
         let tls_acceptor = TlsAcceptor::from(Arc::new(tls_cfg));
 
-        let client: Client<HttpConnector, Incoming> = Client::builder(TokioExecutor::new())
-            .build(HttpConnector::new());
+        let client: Client<HttpConnector, Incoming> =
+            Client::builder(TokioExecutor::new()).build(HttpConnector::new());
 
         info!("DevBind proxy listening on https://{}", addr);
 
-        // Share the routes mapping
-        let routes = Arc::new(self.config.routes.clone());
+        // Spawn a simple HTTP -> HTTPS redirector on port 80
+        tokio::spawn(async move {
+            if let Ok(http_listener) = TcpListener::bind("127.0.0.1:80").await {
+                info!("HTTP to HTTPS redirector listening on 127.0.0.1:80");
+                loop {
+                    if let Ok((stream, _)) = http_listener.accept().await {
+                        let io = TokioIo::new(stream);
+                        tokio::spawn(async move {
+                            let _ = http1::Builder::new()
+                                .serve_connection(
+                                    io,
+                                    service_fn(|req: Request<Incoming>| async move {
+                                        let host = req
+                                            .headers()
+                                            .get("host")
+                                            .and_then(|h| h.to_str().ok())
+                                            .unwrap_or("");
+                                        let url = format!(
+                                            "https://{}{}",
+                                            host,
+                                            req.uri()
+                                                .path_and_query()
+                                                .map(|pq| pq.as_str())
+                                                .unwrap_or("/")
+                                        );
+                                        Ok::<_, hyper::Error>(
+                                            Response::builder()
+                                                .status(301)
+                                                .header("Location", url)
+                                                .body(Full::new(hyper::body::Bytes::default()))
+                                                .unwrap(),
+                                        )
+                                    }),
+                                )
+                                .await;
+                        });
+                    }
+                }
+            } else {
+                warn!("Could not bind to port 80 for HTTP redirects. Are you running an existing web server?");
+            }
+        });
+
+        // Save config_dir for hot reloading routes
+        let config_path = config_dir.join("config.toml");
 
         loop {
             let (stream, _) = listener.accept().await?;
             let tls_acceptor = tls_acceptor.clone();
             let client = client.clone();
-            let routes = routes.clone();
+
+            // Hot reload routes for each connection
+            let current_config = DevBindConfig::load(&config_path).unwrap_or_default();
+            let routes = Arc::new(current_config.routes);
 
             tokio::spawn(async move {
                 let tls_stream = match tls_acceptor.accept(stream).await {
@@ -88,7 +134,9 @@ impl ProxyServer {
                     let routes = routes.clone();
 
                     async move {
-                        let host = req.headers().get("host")
+                        let host = req
+                            .headers()
+                            .get("host")
                             .and_then(|h| h.to_str().ok())
                             .unwrap_or("")
                             .split(':')
@@ -97,31 +145,49 @@ impl ProxyServer {
                             .to_string(); // Owned string to avoid borrowing req
 
                         // Find the corresponding local port for this domain
-                        let target_port = routes.iter()
-                            .find(|r| r.domain == host)
-                            .map(|r| r.port);
+                        let target_port = routes.iter().find(|r| r.domain == host).map(|r| r.port);
 
                         if let Some(port) = target_port {
                             info!("Proxying {} to 127.0.0.1:{}", host, port);
 
                             // Rewrite the URI to point to local backend service
-                            let uri_string = format!("http://127.0.0.1:{}{}", port, req.uri().path_and_query().map(|pq| pq.as_str()).unwrap_or("/"));
+                            let uri_string = format!(
+                                "http://127.0.0.1:{}{}",
+                                port,
+                                req.uri()
+                                    .path_and_query()
+                                    .map(|pq| pq.as_str())
+                                    .unwrap_or("/")
+                            );
                             *req.uri_mut() = uri_string.parse().unwrap();
 
-                            req.headers_mut().insert("X-Forwarded-Proto", "https".parse().unwrap());
+                            req.headers_mut()
+                                .insert("X-Forwarded-Proto", "https".parse().unwrap());
 
                             match client.request(req).await {
                                 Ok(res) => {
                                     // Convert Incoming body to our Full body type for simplicity right now
                                     let (parts, body) = res.into_parts();
-                                    let collected_body = body.collect().await.map(|b| b.to_bytes()).unwrap_or_default();
-                                    Ok::<_, hyper::Error>(Response::from_parts(parts, Full::new(collected_body)))
-                                },
+                                    let collected_body = body
+                                        .collect()
+                                        .await
+                                        .map(|b| b.to_bytes())
+                                        .unwrap_or_default();
+                                    Ok::<_, hyper::Error>(Response::from_parts(
+                                        parts,
+                                        Full::new(collected_body),
+                                    ))
+                                }
                                 Err(e) => {
-                                    error!("Backend connection failed for {}:{}: {}", host, port, e);
+                                    error!(
+                                        "Backend connection failed for {}:{}: {}",
+                                        host, port, e
+                                    );
                                     Ok(Response::builder()
                                         .status(502)
-                                        .body(Full::new(Bytes::from("Bad Gateway: Backend unreachable")))
+                                        .body(Full::new(Bytes::from(
+                                            "Bad Gateway: Backend unreachable",
+                                        )))
                                         .unwrap())
                                 }
                             }
@@ -129,16 +195,15 @@ impl ProxyServer {
                             warn!("Unknown host requested: {}", host);
                             Ok(Response::builder()
                                 .status(404)
-                                .body(Full::new(Bytes::from("Not Found: Domain not registered in DevBind")))
+                                .body(Full::new(Bytes::from(
+                                    "Not Found: Domain not registered in DevBind",
+                                )))
                                 .unwrap())
                         }
                     }
                 });
 
-                if let Err(e) = http1::Builder::new()
-                    .serve_connection(io, service)
-                    .await
-                {
+                if let Err(e) = http1::Builder::new().serve_connection(io, service).await {
                     error!("Error serving connection: {:?}", e);
                 }
             });

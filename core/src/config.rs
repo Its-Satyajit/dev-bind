@@ -22,7 +22,7 @@ impl Default for DevBindConfig {
     fn default() -> Self {
         Self {
             proxy: ProxyConfig {
-                listen_port: 8443,
+                listen_port: 443,
                 use_mkcert: true,
             },
             routes: Vec::new(),

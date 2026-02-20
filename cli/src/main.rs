@@ -1,10 +1,10 @@
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use devbind_core::config::{DevBindConfig, RouteConfig};
 use devbind_core::hosts::HostsManager;
 use devbind_core::proxy::ProxyServer;
-use anyhow::Result;
 use std::path::PathBuf;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 #[derive(Parser, Debug)]
 #[command(name = "devbind")]
@@ -30,7 +30,11 @@ enum Commands {
 }
 
 fn get_config_path() -> PathBuf {
-    let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("~/.config"));
+    let mut path = if let Ok(sudo_user) = std::env::var("SUDO_USER") {
+        PathBuf::from(format!("/home/{}/.config", sudo_user))
+    } else {
+        dirs::config_dir().unwrap_or_else(|| PathBuf::from("~/.config"))
+    };
     path.push("devbind");
     path.push("config.toml");
     path
@@ -65,7 +69,10 @@ async fn main() -> Result<()> {
             let domains: Vec<String> = config.routes.iter().map(|r| r.domain.clone()).collect();
 
             if let Err(e) = manager.update_routes(&domains) {
-                warn!("Failed to update /etc/hosts (try running with sudo?): {}", e);
+                warn!(
+                    "Failed to update /etc/hosts (try running with sudo?): {}",
+                    e
+                );
             } else {
                 info!("Successfully updated /etc/hosts");
             }
@@ -74,7 +81,10 @@ async fn main() -> Result<()> {
         }
         Commands::List => {
             let config = DevBindConfig::load(&config_path)?;
-            println!("DevBind Configuration (Proxy Port: {}):", config.proxy.listen_port);
+            println!(
+                "DevBind Configuration (Proxy Port: {}):",
+                config.proxy.listen_port
+            );
             println!("{:-<40}", "");
             println!("{:<25} | {:<8}", "Domain", "Port");
             println!("{:-<40}", "");
@@ -88,7 +98,10 @@ async fn main() -> Result<()> {
         }
         Commands::Start => {
             let config = DevBindConfig::load(&config_path)?;
-            info!("Starting DevBind proxy on port {}...", config.proxy.listen_port);
+            info!(
+                "Starting DevBind proxy on port {}...",
+                config.proxy.listen_port
+            );
 
             let proxy = ProxyServer::new(config);
             let mut config_dir = config_path.clone();
