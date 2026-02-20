@@ -41,10 +41,46 @@ cd dev-bind
 ```
 
 `install.sh` will:
-1. Build release binaries (`cargo build --release`)
-2. Copy `devbind` and `devbind-gui` to `~/.local/bin`
+1. Build **both** `devbind` (CLI) and `devbind-gui` (GUI) via `cargo build --release`
+2. Copy them to `~/.local/bin`
 3. Grant `CAP_NET_BIND_SERVICE` so DevBind can bind ports `80`/`443` without root
 4. Register a `.desktop` launcher for your application menu
+
+### Reinstalling / Updating
+
+If DevBind is currently running, stop it first — Linux won't overwrite a busy executable:
+
+```bash
+# Stop the systemd service (if installed as daemon)
+systemctl --user stop devbind
+
+# Or kill the process directly
+pkill -x devbind
+
+# Then reinstall
+./install.sh
+```
+
+### Uninstalling
+
+```bash
+# 1. Stop and remove the systemd service (if installed)
+systemctl --user stop devbind
+systemctl --user disable devbind
+rm -f ~/.config/systemd/user/devbind.service
+systemctl --user daemon-reload
+
+# 2. Remove the Root CA from system & browser trust stores
+devbind untrust
+
+# 3. Remove the binaries and desktop launcher
+rm -f ~/.local/bin/devbind ~/.local/bin/devbind-gui
+rm -f ~/.local/share/applications/devbind.desktop
+
+# 4. (Optional) Remove config, certificates and hosts entries
+devbind-gui  # or: open /etc/hosts and remove the DevBind block manually
+rm -rf ~/.config/devbind
+```
 
 ## Quick Start
 
