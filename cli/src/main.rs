@@ -4,6 +4,7 @@ use devbind_core::hosts::HostsManager;
 use devbind_core::proxy::ProxyServer;
 use anyhow::Result;
 use std::path::PathBuf;
+use tracing::{info, warn, error};
 
 #[derive(Parser, Debug)]
 #[command(name = "devbind")]
@@ -37,6 +38,8 @@ fn get_config_path() -> PathBuf {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     let cli = Cli::parse();
     let config_path = get_config_path();
 
@@ -47,13 +50,13 @@ async fn main() -> Result<()> {
             // Allow updating existing port if it already exists
             if let Some(route) = config.routes.iter_mut().find(|r| r.domain == *domain) {
                 route.port = *port;
-                println!("Updated {} to port {}", domain, port);
+                info!("Updated {} to port {}", domain, port);
             } else {
                 config.routes.push(RouteConfig {
                     domain: domain.clone(),
                     port: *port,
                 });
-                println!("Added {} to port {}", domain, port);
+                info!("Added {} to port {}", domain, port);
             }
 
             // Sync with hosts file
@@ -62,9 +65,9 @@ async fn main() -> Result<()> {
             let domains: Vec<String> = config.routes.iter().map(|r| r.domain.clone()).collect();
 
             if let Err(e) = manager.update_routes(&domains) {
-                eprintln!("Warning: Failed to update /etc/hosts (try running with sudo?): {}", e);
+                warn!("Failed to update /etc/hosts (try running with sudo?): {}", e);
             } else {
-                println!("Successfully updated /etc/hosts");
+                info!("Successfully updated /etc/hosts");
             }
 
             config.save(&config_path)?;
@@ -85,14 +88,14 @@ async fn main() -> Result<()> {
         }
         Commands::Start => {
             let config = DevBindConfig::load(&config_path)?;
-            println!("Starting DevBind proxy on port {}...", config.proxy.listen_port);
+            info!("Starting DevBind proxy on port {}...", config.proxy.listen_port);
 
             let proxy = ProxyServer::new(config);
             let mut config_dir = config_path.clone();
             config_dir.pop(); // Remove config.toml to get the dir
 
             if let Err(e) = proxy.start(config_dir).await {
-                eprintln!("Proxy server terminated with error: {:?}", e);
+                error!("Proxy server terminated with error: {:?}", e);
             }
         }
     }

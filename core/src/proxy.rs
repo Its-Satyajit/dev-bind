@@ -13,6 +13,8 @@ use crate::config::DevBindConfig;
 use crate::cert::CertManager;
 use std::path::PathBuf;
 
+use tracing::{info, error};
+
 pub struct ProxyServer {
     config: DevBindConfig,
 }
@@ -54,7 +56,7 @@ impl ProxyServer {
 
         let tls_acceptor = TlsAcceptor::from(Arc::new(tls_cfg));
 
-        println!("Listening on https://{}", addr);
+        info!("Listening on https://{}", addr);
 
         loop {
             let (stream, _) = listener.accept().await?;
@@ -64,7 +66,7 @@ impl ProxyServer {
                 let tls_stream = match tls_acceptor.accept(stream).await {
                     Ok(s) => s,
                     Err(e) => {
-                        eprintln!("TLS handshake error: {}", e);
+                        error!("TLS handshake error: {}", e);
                         return;
                     }
                 };
@@ -81,7 +83,7 @@ impl ProxyServer {
                     }))
                     .await
                 {
-                    eprintln!("Error serving connection: {:?}", e);
+                    error!("Error serving connection: {:?}", e);
                 }
             });
         }
