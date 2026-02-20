@@ -2,6 +2,7 @@ use devbind_core::config::DevBindConfig;
 use devbind_core::hosts::HostsManager;
 use dioxus::prelude::*;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 fn get_config_path() -> PathBuf {
     let mut path = if let Ok(sudo_user) = std::env::var("SUDO_USER") {
@@ -12,6 +13,96 @@ fn get_config_path() -> PathBuf {
     path.push("devbind");
     path.push("config.toml");
     path
+}
+
+fn get_config_dir() -> PathBuf {
+    let mut p = get_config_path();
+    p.pop();
+    p
+}
+
+/// Resolve the installed devbind binary path (prefers ~/.local/bin, falls back to PATH).
+fn which_devbind() -> String {
+    if let Some(p) = dirs::home_dir()
+        .map(|h| h.join(".local/bin/devbind"))
+        .filter(|p| p.exists())
+    {
+        return p.to_string_lossy().into_owned();
+    }
+    "devbind".to_string()
+}
+
+/// Check whether the devbind proxy is actually listening on port 443.
+fn is_proxy_running() -> bool {
+    std::net::TcpStream::connect("127.0.0.1:443").is_ok()
+}
+
+/// Check whether the systemd user service is active.
+fn is_service_active() -> bool {
+    std::process::Command::new("systemctl")
+        .args(["--user", "is-active", "--quiet", "devbind"])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Check whether the systemd user service is installed (unit file exists).
+fn is_service_installed() -> bool {
+    dirs::home_dir()
+        .map(|h| h.join(".config/systemd/user/devbind.service").exists())
+        .unwrap_or(false)
+}
+
+/// Write the systemd user service file and enable + start it.
+fn install_service(devbind_bin: &str) -> Result<(), String> {
+    let service_dir = dirs::home_dir()
+        .ok_or("Cannot find home directory")?
+        .join(".config/systemd/user");
+    std::fs::create_dir_all(&service_dir).map_err(|e| e.to_string())?;
+
+    let service_content = format!(
+        "[Unit]\nDescription=DevBind Local Dev SSL Reverse Proxy\nAfter=network.target\n\n\
+         [Service]\nExecStart={bin} start\nRestart=on-failure\nRestartSec=5\n\n\
+         [Install]\nWantedBy=default.target\n",
+        bin = devbind_bin
+    );
+    std::fs::write(service_dir.join("devbind.service"), service_content)
+        .map_err(|e| e.to_string())?;
+
+    for args in &[
+        vec!["--user", "daemon-reload"],
+        vec!["--user", "enable", "devbind"],
+        vec!["--user", "start", "devbind"],
+    ] {
+        let status = std::process::Command::new("systemctl")
+            .args(args)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!("systemctl {} failed", args.join(" ")));
+        }
+    }
+    Ok(())
+}
+
+/// Stop, disable and remove the systemd user service.
+fn uninstall_service() -> Result<(), String> {
+    for args in &[
+        vec!["--user", "stop", "devbind"],
+        vec!["--user", "disable", "devbind"],
+    ] {
+        let _ = std::process::Command::new("systemctl").args(args).status();
+    }
+    if let Some(path) = dirs::home_dir()
+        .map(|h| h.join(".config/systemd/user/devbind.service"))
+        .filter(|p| p.exists())
+    {
+        std::fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    let _ = std::process::Command::new("systemctl")
+        .args(["--user", "daemon-reload"])
+        .status();
+    Ok(())
 }
 
 fn main() {
@@ -34,6 +125,12 @@ fn App() -> Element {
     let mut active_tab = use_signal(|| "dashboard");
     let mut hosts_content = use_signal(|| String::new());
 
+    // Proxy process handle (for manual start/stop, not the systemd path).
+    let proxy_child: Arc<Mutex<Option<std::process::Child>>> = Arc::new(Mutex::new(None));
+    let mut proxy_online = use_signal(is_proxy_running);
+    let mut service_installed = use_signal(is_service_installed);
+    let mut service_active = use_signal(is_service_active);
+
     let update_config = move |cfg: DevBindConfig,
                               mut config_sig: Signal<DevBindConfig>,
                               mut err_sig: Signal<String>| {
@@ -42,11 +139,8 @@ fn App() -> Element {
             err_sig.set(format!("Failed to save configuration: {}", e));
             return;
         }
-
-        let hosts_path = PathBuf::from("/etc/hosts");
-        let manager = HostsManager::new(&hosts_path);
+        let manager = HostsManager::new(std::path::Path::new("/etc/hosts"));
         let domains: Vec<String> = cfg.routes.iter().map(|r| r.domain.clone()).collect();
-
         if let Err(e) = manager.update_routes(&domains) {
             err_sig.set(format!("Host configuration warning: {}", e));
         } else {
@@ -58,106 +152,50 @@ fn App() -> Element {
     let style_content = r#"
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
-
         :root {
-            --bg-main: #232629;
-            --bg-sidebar: #31363b;
-            --bg-card: #2a2e32;
-            --text-main: #eff0f1;
-            --text-muted: #7f8c8d;
-            --accent: #3daee9;
-            --accent-hover: #1d99f3;
-            --border: #4d4d4d;
-            --radius: 2px;
-            --tooltip-bg: #1a1c1e;
+            --bg-main: #232629; --bg-sidebar: #31363b; --bg-card: #2a2e32;
+            --text-main: #eff0f1; --text-muted: #7f8c8d;
+            --accent: #3daee9; --accent-hover: #1d99f3;
+            --border: #4d4d4d; --radius: 2px; --tooltip-bg: #1a1c1e;
         }
-
         @media (prefers-color-scheme: light) {
             :root {
-                --bg-main: #eff0f1;
-                --bg-sidebar: #fcfcfc;
-                --bg-card: #ffffff;
-                --text-main: #232629;
-                --text-muted: #7f8c8d;
-                --accent: #3daee9;
-                --accent-hover: #1d99f3;
-                --border: #cdd3da;
-                --tooltip-bg: #232629;
+                --bg-main: #eff0f1; --bg-sidebar: #fcfcfc; --bg-card: #ffffff;
+                --text-main: #232629; --text-muted: #7f8c8d;
+                --accent: #3daee9; --accent-hover: #1d99f3;
+                --border: #cdd3da; --tooltip-bg: #232629;
             }
         }
-
-        body {
-            font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: var(--text-main);
-            transition: background-color 0.2s ease, color 0.2s ease; margin: 0;
-            -webkit-font-smoothing: antialiased;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: var(--text-main);
+               transition: background-color 0.2s ease, color 0.2s ease; margin: 0; -webkit-font-smoothing: antialiased; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         .sidebar { background-color: var(--bg-sidebar); border-right: 1px solid var(--border); }
-        .terminal-block {
-            background-color: rgba(0, 0, 0, 0.05); border: 1px solid var(--border); border-radius: var(--radius);
-        }
-        .btn-action {
-            background-color: var(--accent); color: white; border-radius: var(--radius); border: none; cursor: pointer;
-            transition: all 0.2s ease;
-        }
+        .terminal-block { background-color: rgba(0,0,0,0.05); border: 1px solid var(--border); border-radius: var(--radius); }
+        .btn-action { background-color: var(--accent); color: white; border-radius: var(--radius); border: none; cursor: pointer; transition: all 0.2s ease; }
         .btn-action:hover { background-color: var(--accent-hover); }
+        .btn-stop { background-color: #c0392b; color: white; border-radius: var(--radius); border: none; cursor: pointer; transition: all 0.2s ease; }
+        .btn-stop:hover { background-color: #e74c3c; }
         input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 0.5; }
-        textarea.terminal-input {
-            background: rgba(0, 0, 0, 0.2);
-            color: var(--text-main);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-family: 'JetBrains Mono', monospace;
-            padding: 1rem;
-            width: 100%;
-            height: 300px;
-            outline: none;
-            resize: none;
-        }
-        .domain-link {
-            transition: all 0.1s ease;
-            cursor: pointer;
-        }
-        .domain-link:hover {
-            text-decoration: underline;
-            color: var(--accent);
-        }
-
-        /* Custom Tooltip Styles */
-        [data-tooltip] {
-            position: relative;
-        }
-        [data-tooltip]::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: var(--tooltip-bg);
-            color: #fff;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-family: 'JetBrains Mono', monospace;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.2s ease, transform 0.2s ease;
-            z-index: 100;
-            pointer-events: none;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--border);
-        }
-        [data-tooltip]:hover::after {
-            opacity: 1;
-            visibility: visible;
-            transform: translateX(-50%) translateY(-4px);
-        }
+        textarea.terminal-input { background: rgba(0,0,0,0.2); color: var(--text-main); border: 1px solid var(--border);
+            border-radius: var(--radius); font-family: 'JetBrains Mono', monospace; padding: 1rem; width: 100%; height: 300px; outline: none; resize: none; }
+        .domain-link { transition: all 0.1s ease; cursor: pointer; }
+        .domain-link:hover { text-decoration: underline; color: var(--accent); }
+        [data-tooltip] { position: relative; }
+        [data-tooltip]::after { content: attr(data-tooltip); position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%);
+            background-color: var(--tooltip-bg); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 10px;
+            font-family: 'JetBrains Mono', monospace; white-space: nowrap; opacity: 0; visibility: hidden;
+            transition: opacity 0.2s ease, transform 0.2s ease; z-index: 100; pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 1px solid var(--border); }
+        [data-tooltip]:hover::after { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(-4px); }
     "#;
 
     let dashboard_active = active_tab() == "dashboard";
     let security_active = active_tab() == "security";
     let hosts_active = active_tab() == "hosts";
+    let daemon_active = active_tab() == "daemon";
+
+    let proxy_child_start = proxy_child.clone();
+    let proxy_child_stop = proxy_child.clone();
 
     rsx! {
         style { "{style_content}" }
@@ -165,6 +203,7 @@ fn App() -> Element {
 
         div { class: "flex h-screen overflow-hidden",
 
+            // ── Sidebar ──────────────────────────────────────────────────────
             aside { class: "w-64 sidebar flex flex-col z-10",
                 div { class: "p-8 mb-4",
                     h1 { class: "text-lg font-bold tracking-tighter mono flex items-center gap-2",
@@ -197,17 +236,74 @@ fn App() -> Element {
                         onclick: move |_| active_tab.set("security"),
                         "SSL TRUST"
                     }
+                    button {
+                        class: if daemon_active { "w-full text-left px-8 py-3 bg-[var(--accent)] text-white font-medium" } else { "w-full text-left px-8 py-3 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-all text-sm" },
+                        "data-tooltip": "Manage devbind as a systemd user service",
+                        onclick: move |_| {
+                            active_tab.set("daemon");
+                            service_installed.set(is_service_installed());
+                            service_active.set(is_service_active());
+                            proxy_online.set(is_proxy_running());
+                        },
+                        "DAEMON"
+                    }
                 }
 
-                div { class: "p-8 border-t border-[var(--border)]",
-                    div { class: "mono text-[9px] text-[var(--text-muted)] mb-1", "SYSTEM_SYNC: ACTIVE" }
+                // ── Proxy status + quick start/stop ──────────────────────────
+                div { class: "p-6 border-t border-[var(--border)] space-y-3",
                     div { class: "flex items-center gap-2",
-                        div { class: "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)] animate-pulse" }
-                        span { class: "text-[10px] mono text-[var(--text-muted)]", "PROXY_ONLINE" }
+                        div {
+                            class: if proxy_online() {
+                                "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)] animate-pulse"
+                            } else {
+                                "w-2 h-2 rounded-full bg-red-500/70"
+                            }
+                        }
+                        span { class: "text-[10px] mono text-[var(--text-muted)]",
+                            if proxy_online() { "PROXY_ONLINE" } else { "PROXY_OFFLINE" }
+                        }
+                    }
+
+                    if proxy_online() {
+                        button {
+                            class: "btn-stop w-full py-2 text-[10px] mono font-bold",
+                            "data-tooltip": "Stop the DevBind proxy (manual mode only)",
+                            onclick: move |_| {
+                                if let Ok(mut guard) = proxy_child_stop.lock() {
+                                    if let Some(child) = guard.as_mut() {
+                                        let _ = child.kill();
+                                        let _ = child.wait();
+                                    }
+                                    *guard = None;
+                                }
+                                proxy_online.set(is_proxy_running());
+                            },
+                            "[ STOP PROXY ]"
+                        }
+                    } else {
+                        button {
+                            class: "btn-action w-full py-2 text-[10px] mono font-bold",
+                            "data-tooltip": "Start the proxy manually (or install daemon for autostart)",
+                            onclick: move |_| {
+                                let bin = which_devbind();
+                                if let Ok(child) = std::process::Command::new(&bin)
+                                    .arg("start")
+                                    .spawn()
+                                {
+                                    if let Ok(mut guard) = proxy_child_start.lock() {
+                                        *guard = Some(child);
+                                    }
+                                    std::thread::sleep(std::time::Duration::from_millis(600));
+                                    proxy_online.set(is_proxy_running());
+                                }
+                            },
+                            "[ START PROXY ]"
+                        }
                     }
                 }
             }
 
+            // ── Main content ─────────────────────────────────────────────────
             main { class: "flex-1 flex flex-col",
 
                 header { class: "px-10 py-6 border-b border-[var(--border)] flex justify-between items-center",
@@ -226,6 +322,8 @@ fn App() -> Element {
                 }
 
                 div { class: "p-10 flex-1 overflow-y-auto",
+
+                    // ── MAPPINGS tab ────────────────────────────────────────
                     if dashboard_active {
                         div { class: "max-w-4xl space-y-10",
                             div { class: "flex items-center gap-4 bg-[var(--bg-sidebar)] p-2 rounded border border-[var(--border)]",
@@ -288,9 +386,7 @@ fn App() -> Element {
                                                                 "data-tooltip": "Click to open in default browser",
                                                                 onclick: {
                                                                     let domain = r.domain.clone();
-                                                                    move |_| {
-                                                                        let _ = open::that(format!("https://{}", domain));
-                                                                    }
+                                                                    move |_| { let _ = open::that(format!("https://{}", domain)); }
                                                                 },
                                                                 "{r.domain}"
                                                             }
@@ -299,7 +395,7 @@ fn App() -> Element {
                                                         td { class: "px-4 py-3 text-right",
                                                             button {
                                                                 class: "text-red-500 hover:text-red-600 transition-all font-bold px-2",
-                                                                "data-tooltip": "Remove this mapping and remove from hosts file",
+                                                                "data-tooltip": "Remove this mapping",
                                                                 onclick: {
                                                                     let domain = r.domain.clone();
                                                                     move |_| {
@@ -320,6 +416,8 @@ fn App() -> Element {
                                 }
                             }
                         }
+
+                    // ── HOSTS FILE tab ────────────────────────────────────────
                     } else if hosts_active {
                         div { class: "max-w-4xl space-y-6",
                             div { class: "terminal-block p-8 space-y-4",
@@ -337,22 +435,17 @@ fn App() -> Element {
                                         class: "btn-action px-8 py-3 mono text-xs font-bold",
                                         "data-tooltip": "Save manual changes to /etc/hosts (requires sudo)",
                                         onclick: move |_| {
-                                            let content = hosts_content();
-                                            let final_content = content.clone();
-                                            match std::fs::write("/tmp/hosts_new", &final_content) {
+                                            let content = hosts_content().clone();
+                                            match std::fs::write("/tmp/hosts_new", &content) {
                                                 Ok(_) => {
-                                                    let status = std::process::Command::new("pkexec")
-                                                        .arg("cp")
-                                                        .arg("/tmp/hosts_new")
-                                                        .arg("/etc/hosts")
+                                                    let s = std::process::Command::new("pkexec")
+                                                        .args(["cp", "/tmp/hosts_new", "/etc/hosts"])
                                                         .status();
-                                                    if let Ok(s) = status {
-                                                        if s.success() {
-                                                            success_msg.set("HOSTS_SAVED".to_string());
-                                                            error_msg.set(String::new());
-                                                        } else {
-                                                            error_msg.set("ELEVATION_FAILED".to_string());
-                                                        }
+                                                    if s.map(|s| s.success()).unwrap_or(false) {
+                                                        success_msg.set("HOSTS_SAVED".to_string());
+                                                        error_msg.set(String::new());
+                                                    } else {
+                                                        error_msg.set("ELEVATION_FAILED".to_string());
                                                     }
                                                 },
                                                 Err(e) => error_msg.set(format!("WRITE_FAIL: {}", e))
@@ -362,16 +455,14 @@ fn App() -> Element {
                                     }
                                     button {
                                         class: "border border-red-500/20 text-red-500/60 px-8 py-3 mono text-xs font-bold rounded",
-                                        "data-tooltip": "Reset /etc/hosts by removing all DevBind entries",
+                                        "data-tooltip": "Remove all DevBind entries from /etc/hosts",
                                         onclick: move |_| {
                                             let manager = HostsManager::new(std::path::Path::new("/etc/hosts"));
                                             match manager.update_routes(&[]) {
                                                 Ok(_) => {
                                                     success_msg.set("RESTORED_DEFAULTS".to_string());
                                                     error_msg.set(String::new());
-                                                    if let Ok(content) = std::fs::read_to_string("/etc/hosts") {
-                                                        hosts_content.set(content);
-                                                    }
+                                                    if let Ok(c) = std::fs::read_to_string("/etc/hosts") { hosts_content.set(c); }
                                                 },
                                                 Err(e) => error_msg.set(format!("RESTORE_FAIL: {}", e))
                                             }
@@ -382,6 +473,8 @@ fn App() -> Element {
                             }
                             p { class: "mono text-[10px] text-amber-500/50 px-4", "# NOTE: Editing system files requires administrative authorization." }
                         }
+
+                    // ── SSL TRUST tab ─────────────────────────────────────────
                     } else if security_active {
                         div { class: "max-w-2xl space-y-10",
                             div { class: "terminal-block p-8 space-y-6",
@@ -392,14 +485,12 @@ fn App() -> Element {
                                 p { class: "mono text-xs text-[var(--text-muted)] leading-relaxed",
                                     "Manage system-wide SSL trust for your local .local domains. Installing the CA requires administrative access via system security prompt."
                                 }
-
                                 div { class: "flex gap-4 pt-4",
                                     button {
                                         class: "btn-action px-8 py-3 mono text-xs font-bold",
                                         "data-tooltip": "Install and trust DevBind Root CA (elevated)",
                                         onclick: move |_| {
-                                            let path = get_config_path();
-                                            let mut dir = path.clone(); dir.pop();
+                                            let dir = get_config_dir();
                                             match devbind_core::trust::install_root_ca(&dir) {
                                                 Ok(_) => { success_msg.set("CA_TRUSTED".to_string()); error_msg.set(String::new()); },
                                                 Err(e) => { error_msg.set(format!("FAIL: {}", e)); success_msg.set(String::new()); }
@@ -419,6 +510,129 @@ fn App() -> Element {
                                         "REVOKE TRUST"
                                     }
                                 }
+                            }
+                        }
+
+                    // ── DAEMON tab ────────────────────────────────────────────
+                    } else if daemon_active {
+                        div { class: "max-w-2xl space-y-8",
+
+                            // Status card
+                            div { class: "terminal-block p-8 space-y-4",
+                                h3 { class: "mono text-sm font-bold flex items-center gap-3",
+                                    span { class: "text-[var(--accent)]", "#" }
+                                    "SYSTEMD_USER_SERVICE"
+                                }
+                                p { class: "mono text-xs text-[var(--text-muted)] leading-relaxed",
+                                    "Install devbind as a systemd user service so it starts automatically on login — no need to run 'devbind start' manually."
+                                }
+
+                                // Status rows
+                                div { class: "space-y-2 py-2",
+                                    div { class: "flex items-center gap-3 mono text-xs",
+                                        div {
+                                            class: if service_installed() { "w-2 h-2 rounded-full bg-green-500" } else { "w-2 h-2 rounded-full bg-red-500/70" }
+                                        }
+                                        span { class: "text-[var(--text-muted)]",
+                                            if service_installed() { "SERVICE_INSTALLED" } else { "SERVICE_NOT_INSTALLED" }
+                                        }
+                                    }
+                                    div { class: "flex items-center gap-3 mono text-xs",
+                                        div {
+                                            class: if service_active() { "w-2 h-2 rounded-full bg-green-500 animate-pulse" } else { "w-2 h-2 rounded-full bg-gray-500/50" }
+                                        }
+                                        span { class: "text-[var(--text-muted)]",
+                                            if service_active() { "SERVICE_ACTIVE" } else { "SERVICE_INACTIVE" }
+                                        }
+                                    }
+                                }
+
+                                // Service file path info
+                                div { class: "mono text-[10px] text-[var(--text-muted)] bg-black/10 px-4 py-2 rounded",
+                                    "~/.config/systemd/user/devbind.service"
+                                }
+
+                                // Action buttons
+                                div { class: "flex flex-wrap gap-3 pt-2",
+                                    if !service_installed() {
+                                        button {
+                                            class: "btn-action px-6 py-2 mono text-xs font-bold",
+                                            "data-tooltip": "Create and enable the systemd user service",
+                                            onclick: move |_| {
+                                                let bin = which_devbind();
+                                                match install_service(&bin) {
+                                                    Ok(_) => {
+                                                        success_msg.set("DAEMON_INSTALLED".to_string());
+                                                        error_msg.set(String::new());
+                                                    }
+                                                    Err(e) => {
+                                                        error_msg.set(format!("DAEMON_ERROR: {}", e));
+                                                        success_msg.set(String::new());
+                                                    }
+                                                }
+                                                service_installed.set(is_service_installed());
+                                                service_active.set(is_service_active());
+                                                proxy_online.set(is_proxy_running());
+                                            },
+                                            "[ INSTALL DAEMON ]"
+                                        }
+                                    } else {
+                                        if service_active() {
+                                            button {
+                                                class: "btn-stop px-6 py-2 mono text-xs font-bold",
+                                                "data-tooltip": "Stop the systemd service",
+                                                onclick: move |_| {
+                                                    let _ = std::process::Command::new("systemctl")
+                                                        .args(["--user", "stop", "devbind"])
+                                                        .status();
+                                                    service_active.set(is_service_active());
+                                                    proxy_online.set(is_proxy_running());
+                                                    success_msg.set("DAEMON_STOPPED".to_string());
+                                                },
+                                                "[ STOP SERVICE ]"
+                                            }
+                                        } else {
+                                            button {
+                                                class: "btn-action px-6 py-2 mono text-xs font-bold",
+                                                "data-tooltip": "Start the systemd service",
+                                                onclick: move |_| {
+                                                    let _ = std::process::Command::new("systemctl")
+                                                        .args(["--user", "start", "devbind"])
+                                                        .status();
+                                                    std::thread::sleep(std::time::Duration::from_millis(600));
+                                                    service_active.set(is_service_active());
+                                                    proxy_online.set(is_proxy_running());
+                                                    success_msg.set("DAEMON_STARTED".to_string());
+                                                },
+                                                "[ START SERVICE ]"
+                                            }
+                                        }
+                                        button {
+                                            class: "border border-red-500/20 text-red-500/60 px-6 py-2 mono text-xs font-bold rounded",
+                                            "data-tooltip": "Stop, disable and remove the service unit file",
+                                            onclick: move |_| {
+                                                match uninstall_service() {
+                                                    Ok(_) => {
+                                                        success_msg.set("DAEMON_REMOVED".to_string());
+                                                        error_msg.set(String::new());
+                                                    }
+                                                    Err(e) => {
+                                                        error_msg.set(format!("REMOVE_ERROR: {}", e));
+                                                        success_msg.set(String::new());
+                                                    }
+                                                }
+                                                service_installed.set(is_service_installed());
+                                                service_active.set(is_service_active());
+                                                proxy_online.set(is_proxy_running());
+                                            },
+                                            "[ UNINSTALL DAEMON ]"
+                                        }
+                                    }
+                                }
+                            }
+
+                            p { class: "mono text-[10px] text-amber-500/50 px-4",
+                                "# Uses 'systemctl --user' — no root required. Runs under your user session."
                             }
                         }
                     }
