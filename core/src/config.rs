@@ -1,9 +1,24 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum AppTheme {
+    #[default]
+    BreezeDark,
+    BreezeLight,
+    AdwaitaDark,
+    AdwaitaLight,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UIConfig {
+    pub theme: AppTheme,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DevBindConfig {
     pub proxy: ProxyConfig,
     pub routes: Vec<RouteConfig>,
+    pub ui: UIConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +41,9 @@ impl Default for DevBindConfig {
                 use_mkcert: true,
             },
             routes: Vec::new(),
+            ui: UIConfig {
+                theme: AppTheme::BreezeDark,
+            },
         }
     }
 }
