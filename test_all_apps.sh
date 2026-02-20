@@ -53,7 +53,7 @@ function test_app_run() {
         sleep 0.5
     done
 
-    # Extract port from log: "🔗  myapp.local → http://127.0.0.1:45321"
+    # Extract port from log: "🔗  myapp.test → http://127.0.0.1:45321"
     PORT=$(grep -oP "(?<=http://127.0.0.1:)\d+" devbind.log || echo "")
 
     if [ -z "$PORT" ]; then
@@ -65,12 +65,12 @@ function test_app_run() {
     fi
 
     echo "=> Background PID: $PID, Assigned Port: $PORT"
-    echo "=> Testing connection to http://$app_name.local:$PORT..."
+    echo "=> Testing connection to http://$app_name.test:$PORT..."
 
     # Give the app a few seconds to boot up and bind to the port
     local success=false
     for i in {1..20}; do
-        if curl -s -m 2 "http://$app_name.local:$PORT" > /dev/null; then
+        if curl -s -m 2 "http://$app_name.test:$PORT" > /dev/null; then
             success=true
             break
         fi

@@ -112,14 +112,58 @@ devbind trust
 
 # 4. Open https://myapp.test in your browser
 
-### Ephemeral App Execution
-You can bypass manual port management entirely by letting DevBind inject a free port into your app runner:
+### Ephemeral App Execution — `devbind run`
+
+`devbind run` is the fastest way to expose any local dev server under instant HTTPS. It:
+- Picks a **free random port** automatically
+- Injects `$PORT`, `$HOST`, and `$DEVBIND_DOMAIN` into the subprocess environment
+- Registers a transient `.test` HTTPS route that is **cleaned up automatically** when the app exits
 
 ```bash
-# Maps https://my-blog.test to a random free port and executes the script
-devbind run my-blog pnpm run dev --port \$PORT
+devbind run <name> <cmd...>
+# Example:
+devbind run my-blog pnpm dev --port \$PORT
 ```
-Your app simply receives `$PORT`, `$HOST`, and `$DEVBIND_DOMAIN` in its environment. DevBind automatically cleans up the proxy route when the app exits.
+
+#### Framework-Specific Commands
+
+Different frameworks need the port and host passed differently. Here is a ready-to-use reference for all major Node.js stacks:
+
+| Framework | Command |
+|---|---|
+| **Next.js** | `devbind run nextapp pnpm dev` |
+| **Vite** (React/Vue/Svelte/Solid) | `devbind run viteapp pnpm dev --port \$PORT --host` |
+| **Nuxt** | `devbind run nuxtapp pnpm dev` |
+| **Angular** | `devbind run angularapp npm run ng -- serve --port \$PORT --host 0.0.0.0` |
+| **Astro** | `devbind run astroapp pnpm dev --port \$PORT --host` |
+| **Remix** | `devbind run remixapp pnpm dev --port \$PORT` |
+| **SvelteKit** | `devbind run sveltekitapp pnpm dev --port \$PORT --host` |
+| **Express / Koa / Fastify** | `devbind run expressapp node server.js` *(reads `$PORT` from env)* |
+| **Django** | `devbind run djangoapp python3 manage.py runserver 0.0.0.0:\$PORT` |
+| **Flask / FastAPI** | `devbind run flaskapp uvicorn main:app --port \$PORT --host 0.0.0.0` |
+| **Laravel** | `devbind run laravelapp php artisan serve --host=0.0.0.0 --port=\$PORT` |
+
+> **Note:** The `--host` flag is required for Vite-based frameworks because Vite defaults to IPv6-only (`::1`), while DevBind proxies to IPv4 `127.0.0.1`. Without `--host`, you will get a *Bad Gateway* error.
+
+#### Allowing Your `.test` Domain (Vite)
+
+Vite 5+ validates the `Host` header by default. Add your domain to `vite.config.js/ts`:
+
+```javascript
+export default defineConfig({
+  server: {
+    allowedHosts: ['react.test', 'myapp.test'], // your devbind domain(s)
+  }
+})
+```
+
+#### Allowing Your `.test` Domain (Angular)
+
+Pass `--allowed-hosts` on the CLI or add to `angular.json`:
+```bash
+devbind run myapp npm run ng -- serve --port \$PORT --host 0.0.0.0
+```
+
 ```
 
 ## Powerful GUI & CLI
@@ -175,6 +219,17 @@ Certs: `~/.config/devbind/certs/`
 Service: `~/.config/systemd/user/devbind.service`
 
 ## Troubleshooting
+
+### Framework "Bad Gateway" or "Invalid Host" (Vite, Next.js)
+Modern frameworks strictly validate the `Host` header to prevent DNS rebinding attacks. When DevBind proxies your `.test` domain, the framework might reject it.
+- **Vite (React/Vue/Svelte)**: Vite binds to `localhost` and `::1` (IPv6) by default. You must pass `--host` to bind to IPv4 so DevBind can reach it. You also need to whitelist `.test` domains in `vite.config.js`:
+  ```javascript
+  export default defineConfig({
+    server: { allowedHosts: ['react.test'] }
+  })
+  ```
+  *Example:* `devbind run react pnpm dev --port $PORT --host`
+- **Next.js**: Automatically works, but you may see a CLI warning. To silence it, add `allowedDevOrigins: ["*.test"]` to your Next config's experimental features.
 
 ### Permission Denied on port 80/443
 `install.sh` grants `CAP_NET_BIND_SERVICE` via `setcap`. If it failed:

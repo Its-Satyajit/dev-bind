@@ -215,8 +215,32 @@ impl ProxyServer {
                             req.headers_mut()
                                 .insert("X-Forwarded-Proto", "https".parse().unwrap());
 
+                            let mut req_upgrade = None;
+                            if req.headers().contains_key(hyper::header::UPGRADE) {
+                                req_upgrade = Some(hyper::upgrade::on(&mut req));
+                            }
+
                             match client.request(req).await {
-                                Ok(res) => {
+                                Ok(mut res) => {
+                                    if res.status() == hyper::StatusCode::SWITCHING_PROTOCOLS {
+                                        if let Some(req_up) = req_upgrade {
+                                            let res_up = hyper::upgrade::on(&mut res);
+                                            tokio::spawn(async move {
+                                                if let (Ok(client_conn), Ok(backend_conn)) =
+                                                    tokio::join!(req_up, res_up)
+                                                {
+                                                    let mut client_io = TokioIo::new(client_conn);
+                                                    let mut backend_io = TokioIo::new(backend_conn);
+                                                    let _ = tokio::io::copy_bidirectional(
+                                                        &mut client_io,
+                                                        &mut backend_io,
+                                                    )
+                                                    .await;
+                                                }
+                                            });
+                                        }
+                                    }
+
                                     // Stream body directly from backend — no full buffering.
                                     let (parts, body) = res.into_parts();
                                     let streamed = body.map_err(|e| {
@@ -254,7 +278,11 @@ impl ProxyServer {
                     }
                 });
 
-                if let Err(e) = http1::Builder::new().serve_connection(io, service).await {
+                if let Err(e) = http1::Builder::new()
+                    .serve_connection(io, service)
+                    .with_upgrades()
+                    .await
+                {
                     error!("Error serving connection: {:?}", e);
                 }
             });
