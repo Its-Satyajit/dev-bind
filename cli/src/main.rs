@@ -1,0 +1,101 @@
+use clap::{Parser, Subcommand};
+use devbind_core::config::{DevBindConfig, RouteConfig};
+use devbind_core::hosts::HostsManager;
+use devbind_core::proxy::ProxyServer;
+use anyhow::Result;
+use std::path::PathBuf;
+
+#[derive(Parser, Debug)]
+#[command(name = "devbind")]
+#[command(about = "Local Dev SSL Reverse Proxy CLI", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Add a new domain to port mapping
+    Add {
+        /// The domain name (e.g., app.dev.local)
+        domain: String,
+        /// The local port your service listens on (e.g., 3000)
+        port: u16,
+    },
+    /// List all configured mappings
+    List,
+    /// Start the reverse proxy (stub for now)
+    Start,
+}
+
+fn get_config_path() -> PathBuf {
+    let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("~/.config"));
+    path.push("devbind");
+    path.push("config.toml");
+    path
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
+    let config_path = get_config_path();
+
+    match &cli.command {
+        Commands::Add { domain, port } => {
+            let mut config = DevBindConfig::load(&config_path)?;
+
+            // Allow updating existing port if it already exists
+            if let Some(route) = config.routes.iter_mut().find(|r| r.domain == *domain) {
+                route.port = *port;
+                println!("Updated {} to port {}", domain, port);
+            } else {
+                config.routes.push(RouteConfig {
+                    domain: domain.clone(),
+                    port: *port,
+                });
+                println!("Added {} to port {}", domain, port);
+            }
+
+            // Sync with hosts file
+            let hosts_path = PathBuf::from("/etc/hosts");
+            let manager = HostsManager::new(&hosts_path);
+            let domains: Vec<String> = config.routes.iter().map(|r| r.domain.clone()).collect();
+
+            if let Err(e) = manager.update_routes(&domains) {
+                eprintln!("Warning: Failed to update /etc/hosts (try running with sudo?): {}", e);
+            } else {
+                println!("Successfully updated /etc/hosts");
+            }
+
+            config.save(&config_path)?;
+        }
+        Commands::List => {
+            let config = DevBindConfig::load(&config_path)?;
+            println!("DevBind Configuration (Proxy Port: {}):", config.proxy.listen_port);
+            println!("{:-<40}", "");
+            println!("{:<25} | {:<8}", "Domain", "Port");
+            println!("{:-<40}", "");
+            if config.routes.is_empty() {
+                println!("  (no routes configured)");
+            } else {
+                for route in &config.routes {
+                    println!("{:<25} | {:<8}", route.domain, route.port);
+                }
+            }
+        }
+        Commands::Start => {
+            let config = DevBindConfig::load(&config_path)?;
+            println!("Starting DevBind proxy on port {}...", config.proxy.listen_port);
+
+            let proxy = ProxyServer::new(config);
+            let mut config_dir = config_path.clone();
+            config_dir.pop(); // Remove config.toml to get the dir
+
+            if let Err(e) = proxy.start(config_dir).await {
+                eprintln!("Proxy server terminated with error: {:?}", e);
+            }
+        }
+    }
+
+    Ok(())
+}

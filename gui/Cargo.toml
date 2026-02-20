@@ -1,0 +1,11 @@
+[package]
+name = "devbind-gui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+devbind-core = { path = "../core" }
+dioxus = { version = "0.5", features = ["desktop"] }
+tokio = { version = "1.37", features = ["full"] }
+anyhow = "1.0"
+dirs = "6.0.0"
