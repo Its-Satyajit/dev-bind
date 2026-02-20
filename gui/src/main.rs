@@ -10,6 +10,7 @@ fn get_config_path() -> PathBuf {
 }
 
 fn main() {
+    tracing_subscriber::fmt::init();
     dioxus::launch(App);
 }
 

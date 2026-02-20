@@ -15,6 +15,7 @@ rcgen = "0.12"
 hyper-util = { version = "0.1.20", features = ["tokio", "server", "server-auto", "http1", "http2"] }
 tokio-rustls = "0.26"
 rustls-pki-types = "1.14.0"
+tracing = "0.1.44"
 
 [dev-dependencies]
 tempfile = "3.25.0"
