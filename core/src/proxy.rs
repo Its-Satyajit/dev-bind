@@ -12,12 +12,25 @@ use hyper_util::rt::{TokioExecutor, TokioIo};
 use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::sign::CertifiedKey;
 use rustls::ServerConfig;
+use std::collections::HashMap;
+use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
+use tokio::sync::RwLock;
 use tokio_rustls::TlsAcceptor;
 
 use tracing::{error, info, warn};
+
+// Use a type alias for the boxed body to keep signatures clean.
+type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
+
+fn boxed_full(data: impl Into<Bytes>) -> BoxBody {
+    Full::new(data.into())
+        .map_err(|e: Infallible| match e {})
+        .boxed()
+}
 
 pub struct ProxyServer {
     config: DevBindConfig,
@@ -38,6 +51,12 @@ impl ResolvesServerCert for SniResolver {
         let sni = client_hello.server_name()?;
         self.cert_manager.get_or_generate_cert(sni).ok()
     }
+}
+
+/// Cached configuration with a freshness timestamp.
+struct CachedConfig {
+    routes: Arc<HashMap<String, u16>>,
+    loaded_at: Instant,
 }
 
 impl ProxyServer {
@@ -106,19 +125,47 @@ impl ProxyServer {
             }
         });
 
-        // Save config_dir for hot reloading routes
+        // Build initial route map. Reload from disk at most once every CACHE_TTL.
         let config_path = config_dir.join("config.toml");
+        let initial_routes =
+            build_route_map(&DevBindConfig::load(&config_path).unwrap_or_default());
+        let cached_config: Arc<RwLock<CachedConfig>> = Arc::new(RwLock::new(CachedConfig {
+            routes: Arc::new(initial_routes),
+            loaded_at: Instant::now(),
+        }));
+
+        const CACHE_TTL: Duration = Duration::from_secs(5);
 
         loop {
             let (stream, _) = listener.accept().await?;
             let tls_acceptor = tls_acceptor.clone();
             let client = client.clone();
-
-            // Hot reload routes for each connection
-            let current_config = DevBindConfig::load(&config_path).unwrap_or_default();
-            let routes = Arc::new(current_config.routes);
+            let cached_config = cached_config.clone();
+            let config_path = config_path.clone();
 
             tokio::spawn(async move {
+                // Refresh config only when TTL has expired — avoids per-connection disk I/O.
+                let routes = {
+                    let needs_refresh = {
+                        let guard = cached_config.read().await;
+                        guard.loaded_at.elapsed() > CACHE_TTL
+                    };
+
+                    if needs_refresh {
+                        // Acquire write lock and double-check to prevent a thundering herd.
+                        let mut guard = cached_config.write().await;
+                        if guard.loaded_at.elapsed() > CACHE_TTL {
+                            if let Ok(new_cfg) = DevBindConfig::load(&config_path) {
+                                guard.routes = Arc::new(build_route_map(&new_cfg));
+                            }
+                            guard.loaded_at = Instant::now();
+                        }
+                        guard.routes.clone()
+                    } else {
+                        cached_config.read().await.routes.clone()
+                    }
+                };
+
                 let tls_stream = match tls_acceptor.accept(stream).await {
                     Ok(s) => s,
                     Err(e) => {
@@ -129,6 +176,7 @@ impl ProxyServer {
 
                 let io = TokioIo::new(tls_stream);
 
+                // Service returns BoxBody so we can either stream or send a static error body.
                 let service = service_fn(move |mut req: Request<Incoming>| {
                     let client = client.clone();
                     let routes = routes.clone();
@@ -145,16 +193,10 @@ impl ProxyServer {
                             .trim_end_matches('.')
                             .to_lowercase();
 
-                        // Find the corresponding local port for this domain
-                        let target_port = routes
-                            .iter()
-                            .find(|r| r.domain.to_lowercase() == host)
-                            .map(|r| r.port);
-
-                        if let Some(port) = target_port {
+                        // O(1) lookup via HashMap — no linear scan.
+                        if let Some(&port) = routes.get(&host) {
                             info!("Proxying {} to 127.0.0.1:{}", host, port);
 
-                            // Rewrite the URI to point to local backend service
                             let uri_string = format!(
                                 "http://127.0.0.1:{}{}",
                                 port,
@@ -170,16 +212,16 @@ impl ProxyServer {
 
                             match client.request(req).await {
                                 Ok(res) => {
-                                    // Convert Incoming body to our Full body type for simplicity right now
+                                    // Stream body directly from backend — no full buffering.
                                     let (parts, body) = res.into_parts();
-                                    let collected_body = body
-                                        .collect()
-                                        .await
-                                        .map(|b| b.to_bytes())
-                                        .unwrap_or_default();
-                                    Ok::<_, hyper::Error>(Response::from_parts(
+                                    let streamed = body.map_err(|e| {
+                                        error!("Upstream body error: {}", e);
+                                        // Propagate as a hyper error to signal broken connection.
+                                        e.into()
+                                    });
+                                    Ok::<Response<BoxBody>, hyper::Error>(Response::from_parts(
                                         parts,
-                                        Full::new(collected_body),
+                                        streamed.boxed(),
                                     ))
                                 }
                                 Err(e) => {
@@ -189,9 +231,7 @@ impl ProxyServer {
                                     );
                                     Ok(Response::builder()
                                         .status(502)
-                                        .body(Full::new(Bytes::from(
-                                            "Bad Gateway: Backend unreachable",
-                                        )))
+                                        .body(boxed_full("Bad Gateway: Backend unreachable"))
                                         .unwrap())
                                 }
                             }
@@ -199,13 +239,11 @@ impl ProxyServer {
                             warn!(
                                 "Unknown host requested: '{}'. Registered: {:?}",
                                 host,
-                                routes.iter().map(|r| &r.domain).collect::<Vec<_>>()
+                                routes.keys().collect::<Vec<_>>()
                             );
                             Ok(Response::builder()
                                 .status(404)
-                                .body(Full::new(Bytes::from(
-                                    "Not Found: Domain not registered in DevBind",
-                                )))
+                                .body(boxed_full("Not Found: Domain not registered in DevBind"))
                                 .unwrap())
                         }
                     }
@@ -217,4 +255,13 @@ impl ProxyServer {
             });
         }
     }
+}
+
+/// Builds an O(1) domain→port lookup map from a config.
+fn build_route_map(config: &DevBindConfig) -> HashMap<String, u16> {
+    config
+        .routes
+        .iter()
+        .map(|r| (r.domain.to_lowercase(), r.port))
+        .collect()
 }

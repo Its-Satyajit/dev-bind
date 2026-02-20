@@ -4,29 +4,35 @@ use std::path::Path;
 use std::process::Command;
 use tracing::{error, info};
 
-pub fn install_root_ca(config_dir: &Path) -> Result<()> {
-    let cert_path = config_dir.join("certs").join("devbind-rootCA.crt");
-
-    if !cert_path.exists() {
-        return Err(anyhow::anyhow!(
-            "Root CA certificate not found at {:?}. Please start the proxy first to generate it.",
-            cert_path
-        ));
-    }
-
-    let script_content = format!(
-        r#"#!/bin/bash
+/// Shell script for installing the DevBind Root CA into system and browser trust stores.
+///
+/// The certificate path is passed via the `DEVBIND_CERT_PATH` environment variable — it is
+/// NOT interpolated into the script string directly.  This prevents shell injection if a
+/// future code-path allows the config directory to be user-controlled.
+const INSTALL_SCRIPT: &str = r#"#!/bin/bash
 set -e
+
+if [ -z "$DEVBIND_CERT_PATH" ]; then
+    echo "Error: DEVBIND_CERT_PATH is not set." >&2
+    exit 1
+fi
+
+# Validate the cert path is an absolute path to an existing file
+if [ ! -f "$DEVBIND_CERT_PATH" ]; then
+    echo "Error: Certificate not found at '$DEVBIND_CERT_PATH'" >&2
+    exit 1
+fi
+
 echo "Installing DevBind CA to system certificates..."
 if command -v update-ca-trust &> /dev/null; then
     # Fedora/Arch/RHEL
     mkdir -p /etc/ca-certificates/trust-source/anchors/
-    cp "{cert_path}" /etc/ca-certificates/trust-source/anchors/devbind.crt
+    cp -- "$DEVBIND_CERT_PATH" /etc/ca-certificates/trust-source/anchors/devbind.crt
     update-ca-trust
 elif command -v update-ca-certificates &> /dev/null; then
     # Debian/Ubuntu
     mkdir -p /usr/local/share/ca-certificates/
-    cp "{cert_path}" /usr/local/share/ca-certificates/devbind.crt
+    cp -- "$DEVBIND_CERT_PATH" /usr/local/share/ca-certificates/devbind.crt
     update-ca-certificates
 else
     echo "Warning: Could not find system CA update tool. Browsers may still work if certutil succeeds."
@@ -34,69 +40,22 @@ fi
 
 echo "Installing DevBind CA into loaded NSS databases (Chrome/Firefox/Brave/Zen)..."
 if command -v certutil &> /dev/null; then
-    # Safely find cert9.db and cert8.db across all known browser profiles (Chrome, Brave, Firefox, Librewolf, etc.)
-    # Chromium-based browsers use ~/.pki/nssdb. Flatpaks use ~/.var/app. Snaps use ~/snap.
-    find /home/*/.mozilla /home/*/.pki/nssdb /home/*/.zen /home/*/.waterfox /home/*/.librewolf /home/*/.var/app /home/*/snap -maxdepth 6 -type f \( -name "cert9.db" -o -name "cert8.db" \) 2>/dev/null | while read certDB; do
-        certdir=$(dirname "${{certDB}}")
-        echo "Injecting into ${{certdir}}..."
-        certutil -A -n "DevBind Root CA" -t "TCu,Cu,Tu" -i "{cert_path}" -d sql:"${{certdir}}" || true
+    find /home/*/.mozilla /home/*/.pki/nssdb /home/*/.zen /home/*/.waterfox \
+         /home/*/.librewolf /home/*/.var/app /home/*/snap \
+         -maxdepth 6 -type f \( -name "cert9.db" -o -name "cert8.db" \) 2>/dev/null \
+    | while IFS= read -r certDB; do
+        certdir=$(dirname -- "$certDB")
+        echo "Injecting into ${certdir}..."
+        certutil -A -n "DevBind Root CA" -t "TCu,Cu,Tu" -i "$DEVBIND_CERT_PATH" -d sql:"${certdir}" || true
     done
 else
-    echo "Warning: 'certutil' is not installed. Browser specific DBs skipped. Please install 'libnss3-tools' for automatic browser trusting."
+    echo "Warning: 'certutil' is not installed. Browser DBs skipped. Install 'libnss3-tools' for automatic browser trusting."
 fi
 echo "Trust installation complete!"
-"#,
-        cert_path = cert_path.display()
-    );
+"#;
 
-    let mut temp_script = tempfile::NamedTempFile::new()?;
-    temp_script.write_all(script_content.as_bytes())?;
-
-    let temp_path = temp_script.into_temp_path();
-    let temp_path_str = temp_path.to_str().unwrap();
-
-    // Make the script executable
-    Command::new("chmod")
-        .arg("+x")
-        .arg(temp_path_str)
-        .status()?;
-
-    // Choose pkexec if in a GUI session and available, otherwise fallback to sudo
-    let use_pkexec = std::env::var("DISPLAY").is_ok()
-        && Command::new("which")
-            .arg("pkexec")
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
-
-    let status = if use_pkexec {
-        info!("Requesting elevated privileges via pkexec...");
-        Command::new("pkexec")
-            .arg(temp_path_str)
-            .status()
-            .context("Failed to run pkexec")?
-    } else {
-        info!("Requesting elevated privileges via sudo...");
-        Command::new("sudo")
-            .arg(temp_path_str)
-            .status()
-            .context("Failed to run sudo")?
-    };
-
-    if status.success() {
-        info!("Root CA successfully installed to system trust store.");
-        Ok(())
-    } else {
-        error!("Failed to install Root CA into system trust store.");
-        Err(anyhow::anyhow!(
-            "Privilege escalation failed or script error. Status: {}",
-            status
-        ))
-    }
-}
-
-pub fn uninstall_root_ca() -> Result<()> {
-    let script_content = r#"#!/bin/bash
+/// Shell script for removing the DevBind Root CA from system and browser trust stores.
+const UNINSTALL_SCRIPT: &str = r#"#!/bin/bash
 set -e
 echo "Removing DevBind CA from system certificates..."
 if command -v update-ca-trust &> /dev/null; then
@@ -113,30 +72,61 @@ fi
 
 echo "Removing DevBind CA from NSS databases (Chrome/Firefox/Brave/Zen)..."
 if command -v certutil &> /dev/null; then
-    find /home/*/.mozilla /home/*/.pki/nssdb /home/*/.zen /home/*/.waterfox /home/*/.librewolf /home/*/.var/app /home/*/snap -maxdepth 6 -type f \( -name "cert9.db" -o -name "cert8.db" \) 2>/dev/null | while read certDB; do
-        certdir=$(dirname "${certDB}")
+    find /home/*/.mozilla /home/*/.pki/nssdb /home/*/.zen /home/*/.waterfox \
+         /home/*/.librewolf /home/*/.var/app /home/*/snap \
+         -maxdepth 6 -type f \( -name "cert9.db" -o -name "cert8.db" \) 2>/dev/null \
+    | while IFS= read -r certDB; do
+        certdir=$(dirname -- "$certDB")
         echo "Removing from ${certdir}..."
         certutil -D -n "DevBind Root CA" -d sql:"${certdir}" || true
     done
 else
-    echo "Warning: 'certutil' is not installed. Browser specific DBs skipped."
+    echo "Warning: 'certutil' is not installed. Browser DBs skipped."
 fi
 echo "DevBind CA removal complete!"
 "#;
 
-    let mut temp_script = tempfile::NamedTempFile::new()?;
-    temp_script.write_all(script_content.as_bytes())?;
+pub fn install_root_ca(config_dir: &Path) -> Result<()> {
+    let cert_path = config_dir.join("certs").join("devbind-rootCA.crt");
+
+    if !cert_path.exists() {
+        return Err(anyhow::anyhow!(
+            "Root CA certificate not found at {:?}. Please start the proxy first to generate it.",
+            cert_path
+        ));
+    }
+
+    run_elevated_script(INSTALL_SCRIPT, Some(&cert_path), "install")
+}
+
+pub fn uninstall_root_ca() -> Result<()> {
+    run_elevated_script(UNINSTALL_SCRIPT, None, "uninstall")
+}
+
+/// Writes `script` to a temporary file and runs it with elevated privileges.
+///
+/// If `cert_path` is provided it is passed via the `DEVBIND_CERT_PATH` environment variable,
+/// not interpolated into the script text, preventing shell injection attacks.
+fn run_elevated_script(script: &str, cert_path: Option<&Path>, action: &str) -> Result<()> {
+    let mut temp_script = tempfile::NamedTempFile::new()
+        .with_context(|| format!("Failed to create temp file for {} script", action))?;
+    temp_script
+        .write_all(script.as_bytes())
+        .with_context(|| format!("Failed to write {} script", action))?;
 
     let temp_path = temp_script.into_temp_path();
-    let temp_path_str = temp_path.to_str().unwrap();
+    let temp_path_str = temp_path
+        .to_str()
+        .context("Temp file path is not valid UTF-8")?;
 
     // Make the script executable
     Command::new("chmod")
         .arg("+x")
         .arg(temp_path_str)
-        .status()?;
+        .status()
+        .context("Failed to chmod temp script")?;
 
-    // Choose pkexec if in a GUI session and available, otherwise fallback to sudo
+    // Detect whether to use pkexec (GUI) or sudo (CLI/headless).
     let use_pkexec = std::env::var("DISPLAY").is_ok()
         && Command::new("which")
             .arg("pkexec")
@@ -144,27 +134,39 @@ echo "DevBind CA removal complete!"
             .map(|s| s.success())
             .unwrap_or(false);
 
-    let status = if use_pkexec {
-        info!("Requesting elevated privileges via pkexec for removal...");
+    let mut cmd = if use_pkexec {
+        info!(
+            "Requesting elevated privileges via pkexec for {}...",
+            action
+        );
         Command::new("pkexec")
-            .arg(temp_path_str)
-            .status()
-            .context("Failed to run pkexec")?
     } else {
-        info!("Requesting elevated privileges via sudo for removal...");
+        info!("Requesting elevated privileges via sudo for {}...", action);
         Command::new("sudo")
-            .arg(temp_path_str)
-            .status()
-            .context("Failed to run sudo")?
     };
 
+    cmd.arg(temp_path_str);
+
+    // Pass the cert path via environment variable — NOT inline in the script.
+    if let Some(path) = cert_path {
+        cmd.env(
+            "DEVBIND_CERT_PATH",
+            path.to_str().context("Cert path is not valid UTF-8")?,
+        );
+    }
+
+    let status = cmd
+        .status()
+        .with_context(|| format!("Failed to run elevated {} script", action))?;
+
     if status.success() {
-        info!("Root CA successfully removed from system trust store.");
+        info!("Root CA {} succeeded.", action);
         Ok(())
     } else {
-        error!("Failed to remove Root CA from system trust store.");
+        error!("Root CA {} failed.", action);
         Err(anyhow::anyhow!(
-            "Privilege escalation failed or script error. Status: {}",
+            "Privilege escalation failed or script error during {}. Status: {}",
+            action,
             status
         ))
     }
