@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::Path;
 use anyhow::{Context, Result};
 use std::collections::HashSet;
+use std::fs;
+use std::path::Path;
 
 const MARKER_START: &str = "# --- DevBind Start ---";
 const MARKER_END: &str = "# --- DevBind End ---";
@@ -47,7 +47,8 @@ impl<'a> HostsManager<'a> {
             // Deduplicate domains
             let mut unique_domains: Vec<String> = {
                 let mut set = HashSet::new();
-                domains.iter()
+                domains
+                    .iter()
                     .filter(|d| set.insert((*d).clone()))
                     .cloned()
                     .collect()
@@ -66,7 +67,59 @@ impl<'a> HostsManager<'a> {
             final_content.push('\n');
         }
 
-        fs::write(self.hosts_file, final_content).context("Failed to write to hosts file")?;
+        if let Err(e) = fs::write(self.hosts_file, &final_content) {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                // Try elevating privileges
+                use std::io::Write;
+                use std::process::Command;
+
+                let mut tmp_file = tempfile::Builder::new()
+                    .prefix("devbind-hosts")
+                    .tempfile()
+                    .context("Failed to create temporary file for elevated write")?;
+
+                tmp_file
+                    .write_all(final_content.as_bytes())
+                    .context("Failed to write to temporary file")?;
+
+                let tmp_path = tmp_file.into_temp_path();
+
+                // Try pkexec first (better for GUI)
+                let status = Command::new("pkexec")
+                    .arg("cp")
+                    .arg(&tmp_path)
+                    .arg(self.hosts_file)
+                    .status();
+
+                match status {
+                    Ok(s) if s.success() => {}
+                    _ => {
+                        // Fallback to sudo for CLI or headless
+                        let status2 = Command::new("sudo")
+                            .arg("cp")
+                            .arg(&tmp_path)
+                            .arg(self.hosts_file)
+                            .status()
+                            .context("Failed to execute elevated copy (Permission Denied). Try running with sudo.")?;
+
+                        // Set proper permissions just in case
+                        let _ = Command::new("sudo")
+                            .arg("chmod")
+                            .arg("644")
+                            .arg(self.hosts_file)
+                            .status();
+
+                        if !status2.success() {
+                            anyhow::bail!(
+                                "Failed to write to hosts file even with elevated privileges"
+                            );
+                        }
+                    }
+                }
+            } else {
+                return Err(e).context("Failed to write to hosts file");
+            }
+        }
 
         Ok(())
     }
@@ -89,7 +142,9 @@ mod tests {
         assert!(content.contains("127.0.0.1 test.local"));
 
         // Update insert
-        manager.update_routes(&["test.local".to_string(), "foo.local".to_string()]).unwrap();
+        manager
+            .update_routes(&["test.local".to_string(), "foo.local".to_string()])
+            .unwrap();
         let content2 = std::fs::read_to_string(tmp.path()).unwrap();
         assert!(content2.contains("127.0.0.1 test.local"));
         assert!(content2.contains("127.0.0.1 foo.local"));

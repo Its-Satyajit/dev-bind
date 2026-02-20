@@ -1,51 +1,72 @@
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DevBindConfig {
     pub proxy: ProxyConfig,
     pub routes: Vec<RouteConfig>,
+    pub ui: UIConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ProxyConfig {
-    pub listen_port: u16,
-    pub use_mkcert: bool,
+    pub port_http: u16,
+    pub port_https: u16,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self {
+            port_http: 80,
+            port_https: 443,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct RouteConfig {
     pub domain: String,
     pub port: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct UIConfig {
+    // Current UI configuration is system-synced (Light/Dark Breeze)
 }
 
 impl Default for DevBindConfig {
     fn default() -> Self {
         Self {
             proxy: ProxyConfig {
-                listen_port: 8443,
-                use_mkcert: true,
+                port_http: 80,
+                port_https: 443,
             },
-            routes: Vec::new(),
+            routes: vec![],
+            ui: UIConfig::default(),
         }
     }
 }
 
 impl DevBindConfig {
-    pub fn load(path: &std::path::Path) -> anyhow::Result<Self> {
+    pub fn load(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Self::default());
         }
-        let content = std::fs::read_to_string(path)?;
-        let config: Self = toml::from_str(&content)?;
-        Ok(config)
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("Failed to read config from {:?}", path))?;
+        toml::from_str(&content).with_context(|| format!("Failed to parse config from {:?}", path))
     }
 
-    pub fn save(&self, path: &std::path::Path) -> anyhow::Result<()> {
+    pub fn save(&self, path: &Path) -> Result<()> {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent)?;
         }
         let content = toml::to_string_pretty(self)?;
-        std::fs::write(path, content)?;
-        Ok(())
+        fs::write(path, content).with_context(|| format!("Failed to write config to {:?}", path))
     }
 }
