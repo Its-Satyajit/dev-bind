@@ -116,7 +116,7 @@ fn main() {
 
 #[component]
 fn App() -> Element {
-    let config = use_signal(|| DevBindConfig::load(&get_config_path()).unwrap_or_default());
+    let mut config = use_signal(|| DevBindConfig::load(&get_config_path()).unwrap_or_default());
     let mut new_domain = use_signal(|| String::new());
     let mut new_port = use_signal(|| String::new());
     let mut error_msg = use_signal(|| String::new());
@@ -129,6 +129,30 @@ fn App() -> Element {
     let mut proxy_online = use_signal(is_proxy_running);
     let mut service_installed = use_signal(is_service_installed);
     let mut service_active = use_signal(is_service_active);
+
+    use_future(move || async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+            if let Ok(cfg) = DevBindConfig::load(&get_config_path()) {
+                if *config.peek() != cfg {
+                    config.set(cfg);
+                }
+            }
+            if *proxy_online.peek() != is_proxy_running() {
+                proxy_online.set(is_proxy_running());
+            }
+            if *service_active.peek() != is_service_active() {
+                service_active.set(is_service_active());
+            }
+            if *service_installed.peek() != is_service_installed() {
+                service_installed.set(is_service_installed());
+            }
+            if *dns_installed.peek() != devbind_core::setup::is_dns_installed() {
+                dns_installed.set(devbind_core::setup::is_dns_installed());
+            }
+        }
+    });
 
     let update_config = move |cfg: DevBindConfig,
                               mut config_sig: Signal<DevBindConfig>,
@@ -536,7 +560,7 @@ fn App() -> Element {
                                             class: if service_active() { "w-2 h-2 rounded-full bg-green-500 animate-pulse" } else { "w-2 h-2 rounded-full bg-gray-500/50" }
                                         }
                                         span { class: "text-[var(--text-muted)]",
-                                            if service_active() { "SERVICE_ACTIVE" } else { "SERVICE_INACTIVE" }
+                                            if service_active() { "SERVICE_ACTIVE" } else if proxy_online() { "SERVICE_INACTIVE (Proxy running manually)" } else { "SERVICE_INACTIVE" }
                                         }
                                     }
                                 }

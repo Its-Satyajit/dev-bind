@@ -22,12 +22,9 @@ pub fn is_resolved_available() -> bool {
 /// Check whether the specific devbind0 NetworkManager connection exists.
 pub fn is_dns_installed() -> bool {
     std::process::Command::new("nmcli")
-        .args(["-t", "-f", "NAME", "connection", "show", "devbind0"])
+        .args(["connection", "show", "devbind0"])
         .output()
-        .map(|opt| {
-            let out = String::from_utf8_lossy(&opt.stdout);
-            out.trim() == "devbind0"
-        })
+        .map(|opt| opt.status.success())
         .unwrap_or(false)
 }
 
