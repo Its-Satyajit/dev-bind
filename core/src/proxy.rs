@@ -46,7 +46,7 @@ impl ProxyServer {
     }
 
     pub async fn start(&self, config_dir: PathBuf) -> Result<()> {
-        let addr = format!("127.0.0.1:{}", self.config.proxy.listen_port);
+        let addr = format!("127.0.0.1:{}", self.config.proxy.port_https);
         let listener = TcpListener::bind(&addr).await?;
 
         let cert_manager = CertManager::new(&config_dir);

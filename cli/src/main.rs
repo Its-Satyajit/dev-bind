@@ -93,7 +93,7 @@ async fn main() -> Result<()> {
             let config = DevBindConfig::load(&config_path)?;
             println!(
                 "DevBind Configuration (Proxy Port: {}):",
-                config.proxy.listen_port
+                config.proxy.port_https
             );
             println!("{:-<40}", "");
             println!("{:<25} | {:<8}", "Domain", "Port");
@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
             let config = DevBindConfig::load(&config_path)?;
             info!(
                 "Starting DevBind proxy on port {}...",
-                config.proxy.listen_port
+                config.proxy.port_https
             );
 
             let proxy = ProxyServer::new(config);
