@@ -69,4 +69,18 @@ impl DevBindConfig {
         let content = toml::to_string_pretty(self)?;
         fs::write(path, content).with_context(|| format!("Failed to write config to {:?}", path))
     }
+
+    /// Add a route (used for ephemeral sessions — caller decides whether to persist).
+    pub fn add_route(&mut self, domain: String, port: u16) {
+        if let Some(route) = self.routes.iter_mut().find(|r| r.domain == domain) {
+            route.port = port;
+        } else {
+            self.routes.push(RouteConfig { domain, port });
+        }
+    }
+
+    /// Remove a route by domain name.
+    pub fn remove_route(&mut self, domain: &str) {
+        self.routes.retain(|r| r.domain != domain);
+    }
 }

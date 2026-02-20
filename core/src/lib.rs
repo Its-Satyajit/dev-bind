@@ -1,5 +1,8 @@
 pub mod cert;
 pub mod config;
+pub mod dns;
 pub mod hosts;
 pub mod proxy;
+pub mod runner;
+pub mod setup;
 pub mod trust;

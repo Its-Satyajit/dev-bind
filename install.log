@@ -1,0 +1,237 @@
+🚀 Installing apps listed in apps.json into ./apps
+======================================
+📦 Installing: React
+======================================
+│
+◇  Scaffolding project in /home/satyajit/Documents/GitHub/OSS/dev-bind/apps/react/app...
+│
+└  Done. Now run:
+
+  cd app
+  pnpm install
+  pnpm dev
+
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +14
+++++++++++++++
+Progress: resolved 64, reused 14, downloaded 0, added 14, done
+
+devDependencies:
++ typescript 5.9.3
++ vite 7.3.1
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: esbuild@0.27.3.                                     │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 1.5s using pnpm v10.30.1
+======================================
+📦 Installing: Vue.js
+======================================
+│
+◇  Scaffolding project in /home/satyajit/Documents/GitHub/OSS/dev-bind/apps/vue_js/app...
+│
+└  Done. Now run:
+
+  cd app
+  pnpm install
+  pnpm dev
+
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +14
+++++++++++++++
+Progress: resolved 64, reused 14, downloaded 0, added 14, done
+
+devDependencies:
++ typescript 5.9.3
++ vite 7.3.1
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: esbuild@0.27.3.                                     │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 1.5s using pnpm v10.30.1
+======================================
+📦 Installing: Angular
+======================================
+CREATE app/README.md (1456 bytes)
+CREATE app/.editorconfig (314 bytes)
+CREATE app/.gitignore (622 bytes)
+CREATE app/angular.json (1894 bytes)
+CREATE app/package.json (951 bytes)
+CREATE app/tsconfig.json (957 bytes)
+CREATE app/tsconfig.app.json (429 bytes)
+CREATE app/tsconfig.spec.json (441 bytes)
+CREATE app/.vscode/extensions.json (130 bytes)
+CREATE app/.vscode/launch.json (470 bytes)
+CREATE app/.vscode/mcp.json (179 bytes)
+CREATE app/.vscode/tasks.json (978 bytes)
+CREATE app/src/main.ts (222 bytes)
+CREATE app/src/index.html (289 bytes)
+CREATE app/src/styles.css (80 bytes)
+CREATE app/src/app/app.css (0 bytes)
+CREATE app/src/app/app.spec.ts (670 bytes)
+CREATE app/src/app/app.ts (285 bytes)
+CREATE app/src/app/app.html (20104 bytes)
+CREATE app/src/app/app.config.ts (313 bytes)
+CREATE app/src/app/app.routes.ts (77 bytes)
+CREATE app/public/favicon.ico (15086 bytes)
+- Installing packages (npm)...
+[32m✔[39m Packages installed successfully.
+    Directory is already under version control. Skipping initialization of git.
+======================================
+📦 Installing: Svelte
+======================================
+│
+◇  Scaffolding project in /home/satyajit/Documents/GitHub/OSS/dev-bind/apps/svelte/app...
+│
+└  Done. Now run:
+
+  cd app
+  pnpm install
+  pnpm dev
+
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 8, reused 7, downloaded 0, added 0
+Progress: resolved 63, reused 13, downloaded 0, added 0
+Packages: +14
+++++++++++++++
+Progress: resolved 64, reused 14, downloaded 0, added 14, done
+
+devDependencies:
++ typescript 5.9.3
++ vite 7.3.1
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: esbuild@0.27.3.                                     │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 2.8s using pnpm v10.30.1
+======================================
+📦 Installing: Next.js
+======================================
+Creating a new Next.js app in /home/satyajit/Documents/GitHub/OSS/dev-bind/apps/next_js/app.
+
+Using pnpm.
+
+Initializing project with template: app-tw 
+
+
+Installing dependencies:
+- next
+- react
+- react-dom
+
+Installing devDependencies:
+- @tailwindcss/postcss
+- @types/node
+- @types/react
+- @types/react-dom
+- eslint
+- eslint-config-next
+- tailwindcss
+- typescript
+
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 10, reused 10, downloaded 0, added 0
+Progress: resolved 64, reused 53, downloaded 0, added 0
+Progress: resolved 173, reused 123, downloaded 0, added 0
+Progress: resolved 266, reused 198, downloaded 0, added 0
+Progress: resolved 399, reused 331, downloaded 0, added 0
+Progress: resolved 416, reused 348, downloaded 0, added 0
+Packages: +350
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 423, reused 355, downloaded 0, added 62
+Progress: resolved 423, reused 355, downloaded 0, added 350, done
+
+dependencies:
++ next 16.1.6
++ react 19.2.3 (19.2.4 is available)
++ react-dom 19.2.3 (19.2.4 is available)
+
+devDependencies:
++ @tailwindcss/postcss 4.2.0
++ @types/node 20.19.33 (25.3.0 is available)
++ @types/react 19.2.14
++ @types/react-dom 19.2.3
++ eslint 9.39.3 (10.0.1 is available)
++ eslint-config-next 16.1.6
++ tailwindcss 4.2.0
++ typescript 5.9.3
+
+Done in 8.2s using pnpm v10.30.1
+
+Generating route types...
+✓ Types generated successfully
+
+Success! Created app at /home/satyajit/Documents/GitHub/OSS/dev-bind/apps/next_js/app
+
+======================================
+📦 Installing: Nuxt.js
+======================================
+┌  [38;2;0;220;130mW[38;2;0;220;130me[38;2;0;220;130ml[38;2;0;220;130mc[38;2;0;220;130mo[38;2;0;220;130mm[38;2;0;220;130me[38;2;0;220;130m [38;2;0;220;130mt[38;2;0;220;130mo[38;2;0;220;130m [38;2;0;220;130mN[38;2;0;220;130mu[38;2;0;220;130mx[38;2;0;220;130mt[38;2;0;220;130m!
+│
+◇  Creating project in app
+[?25l│
+[1D[0K◒  Downloading minimal template[1G[J◐  Downloading minimal template[1G[J◓  Downloading minimal template[1G[J◑  Downloading minimal template[1G[J◒  Downloading minimal template[1G[J◐  Downloading minimal template[1G[J◓  Downloading minimal template[1G[J◑  Downloading minimal template[1G[J◒  Downloading minimal template.[1G[J◐  Downloading minimal template.[1G[J◓  Downloading minimal template.[1G[J◑  Downloading minimal template.[1G[J◇  Downloaded minimal template
+[?25h[?25l│
+◆  Which package manager would you like to use?
+│  ○ npm
+│  ● pnpm (current)
+│  ○ yarn
+│  ○ bun
+│  ○ deno
+└
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Progress: resolved 30, reused 20, downloaded 8, added 0
+Progress: resolved 57, reused 25, downloaded 25, added 0
+Progress: resolved 79, reused 38, downloaded 35, added 0
+Progress: resolved 153, reused 53, downloaded 50, added 0
+Progress: resolved 192, reused 61, downloaded 67, added 0
+Progress: resolved 236, reused 84, downloaded 88, added 0
+Progress: resolved 321, reused 114, downloaded 110, added 0
+Progress: resolved 401, reused 168, downloaded 139, added 0
+Progress: resolved 576, reused 290, downloaded 159, added 0
+Progress: resolved 671, reused 380, downloaded 169, added 0
+ WARN  1 deprecated subdependencies found: glob@10.5.0
+Packages: +566
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 691, reused 399, downloaded 172, added 5
+Progress: resolved 691, reused 399, downloaded 173, added 566, done
+
+> app@ postinstall /home/satyajit/Documents/GitHub/OSS/dev-bind/apps/nuxt_js/app
+> nuxt prepare
+
+│
+◆  Types generated in .nuxt.
+ WARN  Issues with peer dependencies found
+.
+└─┬ nuxt 4.3.1
+  └─┬ @nuxt/cli 3.33.1
+    └─┬ @bomb.sh/tab 0.0.12
+      └── ✕ unmet peer citty@^0.1.6: found 0.2.1
+
+dependencies:
++ nuxt 4.3.1
++ vue 3.5.28
++ vue-router 4.6.4 (5.0.3 is available)
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: @parcel/watcher@2.5.6, esbuild@0.27.3.              │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 14.5s using pnpm v10.30.1
+
+🎉 App scaffolding complete! Look in ./apps/

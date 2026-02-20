@@ -125,6 +125,11 @@ impl ProxyServer {
             }
         });
 
+        // Spawn the embedded DNS server for *.test resolution
+        tokio::spawn(async {
+            crate::dns::run_dns_server(crate::dns::DNS_LISTEN_ADDR).await;
+        });
+
         // Build initial route map. Reload from disk at most once every CACHE_TTL.
         let config_path = config_dir.join("config.toml");
         let initial_routes =

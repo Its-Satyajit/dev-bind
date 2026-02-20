@@ -136,24 +136,26 @@ mod tests {
         let manager = HostsManager::new(tmp.path());
 
         // Initial insert
-        manager.update_routes(&["test.local".to_string()]).unwrap();
+        manager
+            .update_routes(&["example.test".to_string()])
+            .unwrap();
         let content = std::fs::read_to_string(tmp.path()).unwrap();
         assert!(content.contains(MARKER_START));
-        assert!(content.contains("127.0.0.1 test.local"));
+        assert!(content.contains("127.0.0.1 example.test"));
 
         // Update insert
         manager
-            .update_routes(&["test.local".to_string(), "foo.local".to_string()])
+            .update_routes(&["example.test".to_string(), "foo.test".to_string()])
             .unwrap();
         let content2 = std::fs::read_to_string(tmp.path()).unwrap();
-        assert!(content2.contains("127.0.0.1 test.local"));
-        assert!(content2.contains("127.0.0.1 foo.local"));
+        assert!(content2.contains("127.0.0.1 example.test"));
+        assert!(content2.contains("127.0.0.1 foo.test"));
         assert_eq!(content2.matches(MARKER_START).count(), 1);
 
         // Remove all
         manager.update_routes(&[]).unwrap();
         let content3 = std::fs::read_to_string(tmp.path()).unwrap();
         assert!(!content3.contains(MARKER_START));
-        assert!(!content3.contains("127.0.0.1 test.local"));
+        assert!(!content3.contains("127.0.0.1 example.test"));
     }
 }

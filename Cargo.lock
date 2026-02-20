@@ -958,6 +958,7 @@ dependencies = [
  "clap",
  "devbind-core",
  "dirs",
+ "libc",
  "tokio",
  "tracing",
  "tracing-subscriber",

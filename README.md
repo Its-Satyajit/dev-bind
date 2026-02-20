@@ -19,6 +19,7 @@ Modern web development requires HTTPS, but setting it up locally is a nightmare.
 
 - **Instant HTTPS Everywhere** — Automatically generates and signs per-domain certificates using an in-memory CA. Zero disk I/O after the first handshake.
 - **Frictionless Domain Mapping** — Map `myapp.local` → `localhost:3000` in seconds.
+- **Ephemeral Run Environment** — Launch apps with `devbind run` to automatically assign a free port, inject `$PORT`, and register transient `.local` HTTPS routes with zero permanent config.
 - **Enterprise-Grade Routing** — `HashMap`-based O(1) lookups ensure your local environment never slows down, even with hundreds of domains.
 - **Smart Hot-Reloading** — Config reloads only when needed (at most every 5s), preserving performance.
 - **Native Streaming Proxy** — Efficiently streams response bodies directly — no RAM buffering or latency.
@@ -109,6 +110,15 @@ devbind start
 devbind trust
 
 # 4. Open https://myapp.local in your browser
+
+### Ephemeral App Execution
+You can bypass manual port management entirely by letting DevBind inject a free port into your app runner:
+
+```bash
+# Maps https://my-blog.local to a random free port and executes the script
+devbind run my-blog pnpm run dev --port \$PORT
+```
+Your app simply receives `$PORT`, `$HOST`, and `$DEVBIND_DOMAIN` in its environment. DevBind automatically cleans up the `/etc/hosts` and proxy route when the app exits.
 ```
 
 ## Powerful GUI & CLI
@@ -149,6 +159,7 @@ Turn DevBind into a background service that just works. No long-running terminal
 |---|---|
 | `devbind start` | Start the proxy (HTTPS on 443, HTTP→HTTPS redirect on 80) |
 | `devbind add <name> <port>` | Map `<name>.local` to local `<port>` |
+| `devbind run <name> <cmd...>` | Dynamically allocate a free port, proxy HTTPS, and run `<cmd>` with `$PORT` injected |
 | `devbind list` | Show all active domain mappings |
 | `devbind trust` | Install Root CA into system & browser trust stores |
 | `devbind untrust` | Remove Root CA from all trust stores |
