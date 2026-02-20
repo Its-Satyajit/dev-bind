@@ -4,20 +4,21 @@ use std::path::Path;
 use std::process::Command;
 use tracing::{error, info};
 
-/// Shell script for installing the DevBind Root CA into system and browser trust stores.
+/// Shell script for installing the DevBind Root CA.
 ///
-/// The certificate path is passed via the `DEVBIND_CERT_PATH` environment variable — it is
-/// NOT interpolated into the script string directly.  This prevents shell injection if a
-/// future code-path allows the config directory to be user-controlled.
+/// The certificate path is passed as `$1` (positional argument), never interpolated
+/// into the script text. This prevents shell injection AND is compatible with `pkexec`,
+/// which strips environment variables before executing the child process.
 const INSTALL_SCRIPT: &str = r#"#!/bin/bash
 set -e
 
+DEVBIND_CERT_PATH="$1"
+
 if [ -z "$DEVBIND_CERT_PATH" ]; then
-    echo "Error: DEVBIND_CERT_PATH is not set." >&2
+    echo "Error: cert path argument missing." >&2
     exit 1
 fi
 
-# Validate the cert path is an absolute path to an existing file
 if [ ! -f "$DEVBIND_CERT_PATH" ]; then
     echo "Error: Certificate not found at '$DEVBIND_CERT_PATH'" >&2
     exit 1
@@ -49,28 +50,26 @@ if command -v certutil &> /dev/null; then
         certutil -A -n "DevBind Root CA" -t "TCu,Cu,Tu" -i "$DEVBIND_CERT_PATH" -d sql:"${certdir}" || true
     done
 else
-    echo "Warning: 'certutil' is not installed. Browser DBs skipped. Install 'libnss3-tools' for automatic browser trusting."
+    echo "Warning: 'certutil' not installed. Install 'libnss3-tools' for browser trust."
 fi
 echo "Trust installation complete!"
 "#;
 
-/// Shell script for removing the DevBind Root CA from system and browser trust stores.
+/// Shell script for removing the DevBind Root CA.
 const UNINSTALL_SCRIPT: &str = r#"#!/bin/bash
 set -e
 echo "Removing DevBind CA from system certificates..."
 if command -v update-ca-trust &> /dev/null; then
-    # Fedora/Arch/RHEL
     rm -f /etc/ca-certificates/trust-source/anchors/devbind.crt
     update-ca-trust
 elif command -v update-ca-certificates &> /dev/null; then
-    # Debian/Ubuntu
     rm -f /usr/local/share/ca-certificates/devbind.crt
     update-ca-certificates
 else
     echo "Warning: Could not find system CA update tool."
 fi
 
-echo "Removing DevBind CA from NSS databases (Chrome/Firefox/Brave/Zen)..."
+echo "Removing DevBind CA from NSS databases..."
 if command -v certutil &> /dev/null; then
     find /home/*/.mozilla /home/*/.pki/nssdb /home/*/.zen /home/*/.waterfox \
          /home/*/.librewolf /home/*/.var/app /home/*/snap \
@@ -81,7 +80,7 @@ if command -v certutil &> /dev/null; then
         certutil -D -n "DevBind Root CA" -d sql:"${certdir}" || true
     done
 else
-    echo "Warning: 'certutil' is not installed. Browser DBs skipped."
+    echo "Warning: 'certutil' not installed. Browser DBs skipped."
 fi
 echo "DevBind CA removal complete!"
 "#;
@@ -96,18 +95,22 @@ pub fn install_root_ca(config_dir: &Path) -> Result<()> {
         ));
     }
 
-    run_elevated_script(INSTALL_SCRIPT, Some(&cert_path), "install")
+    run_elevated_script(
+        INSTALL_SCRIPT,
+        Some(cert_path.to_str().context("Cert path is not valid UTF-8")?),
+        "install",
+    )
 }
 
 pub fn uninstall_root_ca() -> Result<()> {
     run_elevated_script(UNINSTALL_SCRIPT, None, "uninstall")
 }
 
-/// Writes `script` to a temporary file and runs it with elevated privileges.
+/// Writes `script` to a temporary file and executes it with elevated privileges.
 ///
-/// If `cert_path` is provided it is passed via the `DEVBIND_CERT_PATH` environment variable,
-/// not interpolated into the script text, preventing shell injection attacks.
-fn run_elevated_script(script: &str, cert_path: Option<&Path>, action: &str) -> Result<()> {
+/// If `arg` is provided it is appended as a positional argument (`$1`) to the script.
+/// This is compatible with `pkexec` (which strips env vars) and `sudo` alike.
+fn run_elevated_script(script: &str, arg: Option<&str>, action: &str) -> Result<()> {
     let mut temp_script = tempfile::NamedTempFile::new()
         .with_context(|| format!("Failed to create temp file for {} script", action))?;
     temp_script
@@ -119,7 +122,7 @@ fn run_elevated_script(script: &str, cert_path: Option<&Path>, action: &str) -> 
         .to_str()
         .context("Temp file path is not valid UTF-8")?;
 
-    // Make the script executable
+    // Make the script executable.
     Command::new("chmod")
         .arg("+x")
         .arg(temp_path_str)
@@ -147,12 +150,9 @@ fn run_elevated_script(script: &str, cert_path: Option<&Path>, action: &str) -> 
 
     cmd.arg(temp_path_str);
 
-    // Pass the cert path via environment variable — NOT inline in the script.
-    if let Some(path) = cert_path {
-        cmd.env(
-            "DEVBIND_CERT_PATH",
-            path.to_str().context("Cert path is not valid UTF-8")?,
-        );
+    // Pass cert path as a positional argument — works with pkexec (env vars are stripped).
+    if let Some(path_str) = arg {
+        cmd.arg(path_str);
     }
 
     let status = cmd
