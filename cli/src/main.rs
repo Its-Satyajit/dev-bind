@@ -27,6 +27,8 @@ enum Commands {
     List,
     /// Start the reverse proxy (stub for now)
     Start,
+    /// Install DevBind Root CA into system and browser trust stores
+    Trust,
 }
 
 fn get_config_path() -> PathBuf {
@@ -109,6 +111,15 @@ async fn main() -> Result<()> {
 
             if let Err(e) = proxy.start(config_dir).await {
                 error!("Proxy server terminated with error: {:?}", e);
+            }
+        }
+        Commands::Trust => {
+            let mut config_dir = config_path.clone();
+            config_dir.pop();
+
+            info!("Initiating Root CA trust installation...");
+            if let Err(e) = devbind_core::trust::install_root_ca(&config_dir) {
+                error!("Failed to install trust: {}", e);
             }
         }
     }

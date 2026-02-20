@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rcgen::generate_simple_self_signed;
+// Removed unused: use rcgen::generate_simple_self_signed;
 use rustls::crypto::aws_lc_rs::sign::any_supported_type;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::sign::CertifiedKey;

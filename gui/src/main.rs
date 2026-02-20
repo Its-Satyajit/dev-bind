@@ -25,6 +25,7 @@ fn App() -> Element {
     let mut new_domain = use_signal(|| String::new());
     let mut new_port = use_signal(|| String::new());
     let mut error_msg = use_signal(|| String::new());
+    let mut success_msg = use_signal(|| String::new());
 
     // Define normal function to avoid FnMut closure cloning issues
     let update_config = move |cfg: DevBindConfig,
@@ -57,10 +58,35 @@ fn App() -> Element {
         div { class: "min-h-screen bg-gray-100 p-8",
             div { class: "max-w-4xl mx-auto",
                 div { class: "bg-white rounded-lg shadow-lg p-6",
-                    h1 { class: "text-2xl font-bold mb-6 text-gray-800", "DevBind Dashboard" }
+                    div { class: "flex justify-between items-center mb-6",
+                        h1 { class: "text-2xl font-bold text-gray-800", "DevBind Dashboard" }
+                        button {
+                            class: "bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 flex items-center gap-2",
+                            onclick: move |_| {
+                                let path = get_config_path();
+                                let mut dir = path.clone();
+                                dir.pop();
+
+                                match devbind_core::trust::install_root_ca(&dir) {
+                                    Ok(_) => {
+                                        success_msg.set("Root CA Trusted Successfully!".to_string());
+                                        error_msg.set(String::new());
+                                    },
+                                    Err(e) => {
+                                        error_msg.set(format!("Trust failed: {}", e));
+                                        success_msg.set(String::new());
+                                    }
+                                }
+                            },
+                            "🔒 Trust Root CA"
+                        }
+                    }
 
                     if !error_msg().is_empty() {
                         div { class: "mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg", "{error_msg()}" }
+                    }
+                    if !success_msg().is_empty() {
+                        div { class: "mb-4 p-4 text-sm text-green-700 bg-green-100 rounded-lg", "{success_msg()}" }
                     }
 
                     div { class: "grid gap-6",
