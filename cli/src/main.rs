@@ -145,7 +145,7 @@ async fn main() -> Result<()> {
             match devbind_core::setup::install_dns(devbind_core::dns::DNS_LISTEN_ADDR) {
                 Ok(()) => {
                     println!("  ✅  DNS integration installed!");
-                    println!("      All *.test domains will resolve to 127.0.0.1");
+                    println!("      All *.test domains will resolve to 127.0.2.1");
                     println!("      when DevBind is running (devbind start).");
                     println!();
                     println!("  Next steps:");
@@ -219,6 +219,7 @@ async fn main() -> Result<()> {
                 (std::env::var("SUDO_UID"), std::env::var("SUDO_GID"))
             {
                 if let (Ok(uid), Ok(gid)) = (uid_str.parse::<u32>(), gid_str.parse::<u32>()) {
+                    #[allow(unused_imports)]
                     use std::os::unix::process::CommandExt;
                     // Provide a pre_exec closure to change UID and GID in the child process just before exec
                     unsafe {

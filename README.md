@@ -1,6 +1,6 @@
 # DevBind: Local Development Reverse Proxy with Automatic HTTPS
 
-**DevBind** is a high-performance, secure local development reverse proxy written in Rust. It eliminates the friction of modern local development by mapping custom `.local` domains to your dev server ports with **Automatic HTTPS** — no more browser security warnings, no manual certificate management, and no `/etc/hosts` headaches.
+**DevBind** is a high-performance, secure local development reverse proxy written in Rust. It eliminates the friction of modern local development by mapping custom `.test` domains to your dev server ports with **Automatic HTTPS** — no more browser security warnings, no manual certificate management, and no `/etc/hosts` headaches.
 
 ![DevBind Mappings Interface - easily manage your local domains](images/mapping_screen.png)
 
@@ -10,16 +10,16 @@ Modern web development requires HTTPS, but setting it up locally is a nightmare.
 
 | The Old Way | The DevBind Way |
 | :--- | :--- |
-| ❌ Manual certificate generation with `openssl` | ✅ **Automatic TLS** for every `.local` domain |
+| ❌ Manual certificate generation with `openssl` | ✅ **Automatic TLS** for every `.test` domain |
 | ❌ Importing Root CAs into every browser manually | ✅ **One-click trust** for system and browser stores |
-| ❌ Manually editing `/etc/hosts` for every new project | ✅ **O(1) Domain Routing** managed via CLI or GUI |
+| ❌ Manually editing `/etc/hosts` for every new project | ✅ **Zero-Config DNS** resolution managed by DevBind |
 | ❌ Scary "Your connection is not private" warnings | ✅ **Green locks** and valid HTTPS everywhere |
 
 ## Key Features
 
 - **Instant HTTPS Everywhere** — Automatically generates and signs per-domain certificates using an in-memory CA. Zero disk I/O after the first handshake.
-- **Frictionless Domain Mapping** — Map `myapp.local` → `localhost:3000` in seconds.
-- **Ephemeral Run Environment** — Launch apps with `devbind run` to automatically assign a free port, inject `$PORT`, and register transient `.local` HTTPS routes with zero permanent config.
+- **Frictionless Domain Mapping** — Map `myapp.test` → `localhost:3000` in seconds.
+- **Ephemeral Run Environment** — Launch apps with `devbind run` to automatically assign a free port, inject `$PORT`, and register transient `.test` HTTPS routes with zero permanent config.
 - **Enterprise-Grade Routing** — `HashMap`-based O(1) lookups ensure your local environment never slows down, even with hundreds of domains.
 - **Smart Hot-Reloading** — Config reloads only when needed (at most every 5s), preserving performance.
 - **Native Streaming Proxy** — Efficiently streams response bodies directly — no RAM buffering or latency.
@@ -87,8 +87,8 @@ devbind untrust
 rm -f ~/.local/bin/devbind ~/.local/bin/devbind-gui
 rm -f ~/.local/share/applications/devbind.desktop
 
-# 4. (Optional) Remove config, certificates and hosts entries
-devbind-gui  # or: open /etc/hosts and remove the DevBind block manually
+# 4. (Optional) Remove config and certificates
+devbind uninstall # remove DNS integration
 rm -rf ~/.config/devbind
 ```
 
@@ -101,24 +101,25 @@ devbind-gui
 # — or use the CLI —
 
 # 1. Add a domain mapping
-devbind add myapp 3000        # maps myapp.local → 127.0.0.1:3000
+devbind add myapp 3000        # maps myapp.test → 127.0.0.1:3000
 
 # 2. Start the proxy
 devbind start
 
-# 3. Install the Root CA so browsers trust your certs
+# 3. Install DNS routing & Root CA (one-time setup)
+devbind install
 devbind trust
 
-# 4. Open https://myapp.local in your browser
+# 4. Open https://myapp.test in your browser
 
 ### Ephemeral App Execution
 You can bypass manual port management entirely by letting DevBind inject a free port into your app runner:
 
 ```bash
-# Maps https://my-blog.local to a random free port and executes the script
+# Maps https://my-blog.test to a random free port and executes the script
 devbind run my-blog pnpm run dev --port \$PORT
 ```
-Your app simply receives `$PORT`, `$HOST`, and `$DEVBIND_DOMAIN` in its environment. DevBind automatically cleans up the `/etc/hosts` and proxy route when the app exits.
+Your app simply receives `$PORT`, `$HOST`, and `$DEVBIND_DOMAIN` in its environment. DevBind automatically cleans up the proxy route when the app exits.
 ```
 
 ## Powerful GUI & CLI
@@ -129,16 +130,6 @@ DevBind provides the best of both worlds: a minimalist CLI for automation and a 
 Add, view, and remove your `domain → port` mappings. Domains are clickable, opening your secure local site instantly in your default browser.
 
 ![Mappings Screen - visualize and manage your local domains](images/mapping_screen.png)
-
-### Hosts File Editor
-Directly view and edit `/etc/hosts` without leaving the app. Changes are written safely via `pkexec`.
-
-![Hosts File Screen - safe and easy editing of system host files](images/hostfile_screen.png)
-
-### SSL Trust Center
-The "holy grail" of local dev. Install your Root CA into system and browser trust stores with a single click.
-
-![SSL Trust Screen - manage your local Certificate Authority trust](images/ssl_screen.png)
 
 ### Background Daemon Management
 Turn DevBind into a background service that just works. No long-running terminal tabs required.
@@ -158,7 +149,7 @@ Turn DevBind into a background service that just works. No long-running terminal
 | Command | Description |
 |---|---|
 | `devbind start` | Start the proxy (HTTPS on 443, HTTP→HTTPS redirect on 80) |
-| `devbind add <name> <port>` | Map `<name>.local` to local `<port>` |
+| `devbind add <name> <port>` | Map `<name>.test` to local `<port>` |
 | `devbind run <name> <cmd...>` | Dynamically allocate a free port, proxy HTTPS, and run `<cmd>` with `$PORT` injected |
 | `devbind list` | Show all active domain mappings |
 | `devbind trust` | Install Root CA into system & browser trust stores |
@@ -170,7 +161,9 @@ Turn DevBind into a background service that just works. No long-running terminal
 Browser → 127.0.0.1:443 (TLS) → DevBind proxy → 127.0.0.1:<port> (local app)
               ↑
         SNI-based cert resolution
-        (in-memory cache → disk fallback → generate & sign)
+        (in-memory CA → generated on fly)
+
+DevBind includes an embedded DNS server on `127.0.2.1:53` which `systemd-resolved` forwards `*.test` queries to.
 ```
 
 - **`core`** — proxy engine, cert manager, hosts manager, config, CA trust
@@ -195,7 +188,7 @@ sudo setcap 'cap_net_bind_service=+ep' ~/.local/bin/devbind
 3. Restart your browser
 
 ### `DNS_PROBE_FINISHED_NXDOMAIN`
-DevBind writes to `/etc/hosts` automatically. If a VPN or network manager overwrites it, re-run `devbind add` or restart the proxy.
+DevBind uses a NetworkManager dummy interface to resolve `*.test` domains cleanly. If resolving fails, make sure you ran `devbind install`. If a restrictive VPN ignores system resolvers, you may need to manually forward `*.test` queries to `127.0.2.1:53`.
 
 ### Proxy not starting as a daemon
 Ensure `systemd --user` is running in your session:

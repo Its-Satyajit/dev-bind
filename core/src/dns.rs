@@ -10,7 +10,7 @@ use tokio::net::UdpSocket;
 use tracing::{error, info, trace};
 
 /// Default listen address for the DevBind DNS server.
-pub const DNS_LISTEN_ADDR: &str = "127.0.0.1:5453";
+pub const DNS_LISTEN_ADDR: &str = "127.0.2.1:53";
 
 /// Start the DNS server. This function runs forever (call via `tokio::spawn`).
 pub async fn run_dns_server(listen_addr: &str) {

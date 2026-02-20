@@ -432,7 +432,7 @@ fn App() -> Element {
                                 }
 
                                 div { class: "mono text-[10px] text-[var(--text-muted)] bg-black/10 px-4 py-2 rounded",
-                                    "/etc/systemd/resolved.conf.d/devbind.conf"
+                                    "NetworkManager dummy interface devbind0"
                                 }
 
                                 div { class: "flex gap-4 pt-4",
@@ -465,7 +465,7 @@ fn App() -> Element {
                                     }
                                 }
                             }
-                            p { class: "mono text-[10px] text-amber-500/50 px-4", "# Requires systemd-resolved. The DNS server runs on port 5453 when DevBind is active." }
+                            p { class: "mono text-[10px] text-amber-500/50 px-4", "# Requires NetworkManager & systemd-resolved. The DNS server runs on port 53 when DevBind is active." }
                         }
 
                     // ── SSL TRUST tab ─────────────────────────────────────────
