@@ -872,6 +872,7 @@ name = "devbind-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "http-body-util",
  "hyper",
  "hyper-util",
  "rcgen",
