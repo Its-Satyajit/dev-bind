@@ -127,21 +127,29 @@ devbind run my-blog pnpm dev --port \$PORT
 
 #### Framework-Specific Commands
 
-Different frameworks need the port and host passed differently. Here is a ready-to-use reference for all major Node.js stacks:
+Different frameworks need the port and host passed differently. Here is a ready-to-use reference for all major frameworks:
 
-| Framework | Command |
-|---|---|
-| **Next.js** | `devbind run nextapp pnpm dev` |
-| **Vite** (React/Vue/Svelte/Solid) | `devbind run viteapp pnpm dev --port \$PORT --host` |
-| **Nuxt** | `devbind run nuxtapp pnpm dev` |
-| **Angular** | `devbind run angularapp npm run ng -- serve --port \$PORT --host 0.0.0.0` |
-| **Astro** | `devbind run astroapp pnpm dev --port \$PORT --host` |
-| **Remix** | `devbind run remixapp pnpm dev --port \$PORT` |
-| **SvelteKit** | `devbind run sveltekitapp pnpm dev --port \$PORT --host` |
-| **Express / Koa / Fastify** | `devbind run expressapp node server.js` *(reads `$PORT` from env)* |
-| **Django** | `devbind run djangoapp python3 manage.py runserver 0.0.0.0:\$PORT` |
-| **Flask / FastAPI** | `devbind run flaskapp uvicorn main:app --port \$PORT --host 0.0.0.0` |
-| **Laravel** | `devbind run laravelapp php artisan serve --host=0.0.0.0 --port=\$PORT` |
+| Framework | Command | Notes |
+|---|---|---|
+| **React** (Vite) | `devbind run react pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
+| **Vue.js** (Vite) | `devbind run vuejs pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
+| **Svelte** (Vite) | `devbind run svelte pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
+| **Solid.js** (Vite) | `devbind run solidjs pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
+| **Lit** (Vite) | `devbind run lit pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
+| **Preact** (Vite) | `devbind run preact pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
+| **Next.js** | `devbind run nextjs pnpm dev` | Works automatically |
+| **Nuxt.js** | `devbind run nuxtjs pnpm dev` | Works automatically |
+| **Angular** | `devbind run angular npm run ng serve --port \$PORT --host 0.0.0.0` | Needs `--host 0.0.0.0` |
+| **Astro** | `devbind run astro pnpm dev --port \$PORT --host` | Vite-based, needs `--host` |
+| **Remix** (React Router) | `devbind run remix pnpm dev --port \$PORT` | Reads PORT from env |
+| **NestJS** | `devbind run nestjs pnpm nest start --port \$PORT` | Needs `--port` flag |
+| **Express.js** | `devbind run express pnpm start` | Reads `$PORT` from env |
+| **Koa** | `devbind run koa node index.js` | Reads `$PORT` from env |
+| **Plain Node.js** | `devbind run nodejs node index.js` | Reads `$PORT` from env |
+| **Django** | `devbind run django python manage.py runserver 0.0.0.0:\$PORT` | Bind to all interfaces |
+| **Flask** | `devbind run flask python -m flask run --host 0.0.0.0 --port \$PORT` | Bind to all interfaces |
+| **FastAPI** | `devbind run fastapi uvicorn main:app --host 0.0.0.0 --port \$PORT` | Bind to all interfaces |
+| **PHP** | `devbind run php php -S 0.0.0.0:\$PORT` | PHP built-in server |
 
 > **Note:** The `--host` flag is required for Vite-based frameworks because Vite defaults to IPv6-only (`::1`), while DevBind proxies to IPv4 `127.0.0.1`. Without `--host`, you will get a *Bad Gateway* error.
 
