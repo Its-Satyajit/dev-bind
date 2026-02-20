@@ -1,22 +1,31 @@
-# DevBind
+# DevBind: Local Development Reverse Proxy with Automatic HTTPS
 
-**DevBind** is a fast, secure local development reverse proxy written in Rust. It maps custom `.local` domains to local dev server ports with automatic HTTPS — no browser security warnings, no manual certificate management.
+**DevBind** is a high-performance, secure local development reverse proxy written in Rust. It eliminates the friction of modern local development by mapping custom `.local` domains to your dev server ports with **Automatic HTTPS** — no more browser security warnings, no manual certificate management, and no `/etc/hosts` headaches.
 
-![Mappings Screen](images/mapping_screen.png)
+![DevBind Mappings Interface - easily manage your local domains](images/mapping_screen.png)
 
-## Features
+## Why DevBind?
 
-- **Automatic HTTPS** — Generates per-domain TLS certificates signed by a local Root CA. In-memory cert cache means zero disk I/O after the first handshake per domain.
-- **Domain → Port Mapping** — Map `myapp.local` → `localhost:3000` in one command.
-- **O(1) Routing** — `HashMap`-based domain lookup; doesn't slow down as you add more domains.
-- **Config Hot-Reload** — Routes are reloaded at most once every 5 seconds — not on every connection.
-- **Streaming Proxy** — Response bodies stream directly between client and backend — no full RAM buffering.
-- **Secure Key Storage** — Private keys written with `0600` permissions (owner-only) on Unix.
-- **CA Trust Management** — Installs/removes the Root CA across system stores and browser NSS databases (Chrome, Firefox, Brave, Zen, Flatpak, Snap).
-- **systemd Daemon** — Install as a user-level systemd service for autostart on login (no root needed).
-- **Dual Interface** — GUI (Dioxus desktop) and full-featured CLI.
-- **Privilege Escalation** — Uses `pkexec` (GUI) or `sudo` (CLI) only when writing to `/etc/hosts` or system cert stores.
-- **Cross-distro** — Arch, Fedora, Debian, Ubuntu and derivatives.
+Modern web development requires HTTPS, but setting it up locally is a nightmare.
+
+| The Old Way | The DevBind Way |
+| :--- | :--- |
+| ❌ Manual certificate generation with `openssl` | ✅ **Automatic TLS** for every `.local` domain |
+| ❌ Importing Root CAs into every browser manually | ✅ **One-click trust** for system and browser stores |
+| ❌ Manually editing `/etc/hosts` for every new project | ✅ **O(1) Domain Routing** managed via CLI or GUI |
+| ❌ Scary "Your connection is not private" warnings | ✅ **Green locks** and valid HTTPS everywhere |
+
+## Key Features
+
+- **Instant HTTPS Everywhere** — Automatically generates and signs per-domain certificates using an in-memory CA. Zero disk I/O after the first handshake.
+- **Frictionless Domain Mapping** — Map `myapp.local` → `localhost:3000` in seconds.
+- **Enterprise-Grade Routing** — `HashMap`-based O(1) lookups ensure your local environment never slows down, even with hundreds of domains.
+- **Smart Hot-Reloading** — Config reloads only when needed (at most every 5s), preserving performance.
+- **Native Streaming Proxy** — Efficiently streams response bodies directly — no RAM buffering or latency.
+- **Hardened Security** — Private keys are stored with `0600` permissions. Root CA management follows system-level security standards.
+- **Zero-Config Trust** — Automatically handles NSS databases for Chrome, Firefox, Brave, Zen, and even Flatpak/Snap versions.
+- **Background Daemon** — Runs as a standard systemd user service for seamless autostart without needing root.
+- **Hybrid Interface** — Choose between a high-performance CLI or a beautiful Dioxus-powered GUI.
 
 ## Requirements
 
@@ -102,50 +111,39 @@ devbind trust
 # 4. Open https://myapp.local in your browser
 ```
 
-## GUI
+## Powerful GUI & CLI
 
-Launch with `devbind-gui` or from your app menu.
+DevBind provides the best of both worlds: a minimalist CLI for automation and a premium GUI for visual management.
 
-### MAPPINGS
+### Domain Mappings
+Add, view, and remove your `domain → port` mappings. Domains are clickable, opening your secure local site instantly in your default browser.
 
-Add, view and remove domain → port mappings. Click any domain link to open it directly in your browser.
+![Mappings Screen - visualize and manage your local domains](images/mapping_screen.png)
 
-![Mappings Screen](images/mapping_screen.png)
+### Hosts File Editor
+Directly view and edit `/etc/hosts` without leaving the app. Changes are written safely via `pkexec`.
 
-### HOSTS FILE
+![Hosts File Screen - safe and easy editing of system host files](images/hostfile_screen.png)
 
-Directly view and edit `/etc/hosts`. Changes are written via `pkexec` (no terminal needed).
+### SSL Trust Center
+The "holy grail" of local dev. Install your Root CA into system and browser trust stores with a single click.
 
-![Hosts File Screen](images/hostfile_screen.png)
+![SSL Trust Screen - manage your local Certificate Authority trust](images/ssl_screen.png)
 
-### SSL TRUST
+### Background Daemon Management
+Turn DevBind into a background service that just works. No long-running terminal tabs required.
 
-One-click Root CA install/uninstall across system and browser trust stores.
+![Daemon Screen - manage the background process for DevBind](images/demon_sereen.png)
 
-![SSL Trust Screen](images/ssl_screen.png)
-
-### DAEMON
-
-Install DevBind as a **systemd user service** so the proxy starts automatically on login.
-
-![Daemon Screen](images/demon_sereen.png)
-
-| Button | Action |
+| Action | Description |
 |---|---|
-| `INSTALL DAEMON` | Writes `~/.config/systemd/user/devbind.service`, enables and starts it |
-| `START SERVICE` | `systemctl --user start devbind` |
-| `STOP SERVICE` | `systemctl --user stop devbind` |
-| `UNINSTALL DAEMON` | Stops, disables and removes the unit file |
+| **Install Daemon** | Sets up the `systemd` user service unit |
+| **Start/Stop** | Precise control over the background process |
+| **Proxy Status** | Live status indicator (checks port 443 in real-time) |
 
-> No root required — runs entirely as a user service.
+### CLI Quick Reference
 
-### Proxy Status
-
-The sidebar always shows a live **PROXY_ONLINE / PROXY_OFFLINE** indicator (checks port 443 in real time) with a quick **START / STOP PROXY** button for manual control without using systemd.
-
-## CLI Reference
-
-![CLI](images/cli.png)
+![DevBind CLI Interface examples](images/cli.png)
 
 | Command | Description |
 |---|---|
