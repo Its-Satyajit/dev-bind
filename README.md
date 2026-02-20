@@ -1,58 +1,69 @@
-# Development
+# DevBind
 
-Your new jumpstart project includes basic organization with an organized `assets` folder and a `components` folder.
-If you chose to develop with the router feature, you will also have a `views` folder.
+DevBind is a high-performance, secure local development reverse proxy implemented in Rust utilizing the Dioxus framework. The application facilitates the mapping of custom `.local` domains to local development ports, providing automated SSL/TLS termination through an integrated Root Certificate Authority (CA) management system.
 
-```
-project/
-├─ assets/ # Any assets that are used by the app should be placed here
-├─ src/
-│  ├─ main.rs # The entrypoint for the app. It also defines the routes for the app.
-│  ├─ components/
-│  │  ├─ mod.rs # Defines the components module
-│  │  ├─ hero.rs # The Hero component for use in the home page
-│  │  ├─ echo.rs # The echo component uses server functions to communicate with the server
-│  ├─ views/ # The views each route will render in the app.
-│  │  ├─ mod.rs # Defines the module for the views route and re-exports the components for each route
-│  │  ├─ blog.rs # The component that will render at the /blog/:id route
-│  │  ├─ home.rs # The component that will render at the / route
-├─ Cargo.toml # The Cargo.toml file defines the dependencies and feature flags for your project
-```
+## Features
 
-### Automatic Tailwind (Dioxus 0.7+)
+- **Automated Domain Mapping**: Facilitates the mapping of arbitrary `.local` domains to specified local ports.
+- **Integrated SSL/TLS Termination**: Provides automated certificate generation and signing via a machine-local Root CA.
+- **Centralized CA Management**: Includes mechanisms for the secure installation and trust management of the Root CA across various system certificate stores and browser environments (including Chromium and Firefox derivatives).
+- **Dual Interface System**: Offers both a graphical user interface (GUI) developed with Dioxus and a comprehensive command-line interface (CLI) for system administration.
+- **Cross-Distribution Compatibility**: Engineered for compatibility with major Linux distributions, including Arch, Fedora, Debian, and Ubuntu, with explicit support for containerized browser environments such as Flatpak and Snap.
+- **State-Agnostic Privilege Escalation**: Utilizes `pkexec` and `sudo` for administrative operations (such as hosts file modification and certificate installation) only when required by the operating system security model.
 
-As of Dioxus 0.7, there no longer is a need to manually install tailwind. Simply `dx serve` and you're good to go!
+## Installation and Deployment
 
-Automatic tailwind is supported by checking for a file called `tailwind.css` in your app's manifest directory (next to Cargo.toml). To customize the file, use the dioxus.toml:
+### System Requirements
 
-```toml
-[application]
-tailwind_input = "my.css"
-tailwind_output = "assets/out.css"
-```
+The application requires `libnss3-tools` for browser trust management and a functional `polkit` implementation for secure privilege escalation.
 
-### Tailwind Manual Install
-
-To use tailwind plugins or manually customize tailwind, you can can install the Tailwind CLI and use it directly.
-
-1. Install npm: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
-2. Install the Tailwind CSS CLI: https://tailwindcss.com/docs/installation/tailwind-cli
-3. Run the following command in the root of the project to start the Tailwind CSS compiler:
-
+**Arch Linux Configuration:**
 ```bash
-npx @tailwindcss/cli -i ./input.css -o ./assets/tailwind.css --watch
+sudo pacman -S nss
 ```
 
-### Serving Your App
-
-Run the following command in the root of your project to start developing with the default platform:
-
+**Debian/Ubuntu Configuration:**
 ```bash
-dx serve --platform desktop
+sudo apt install libnss3-tools
 ```
 
-To run for a different platform, use the `--platform platform` flag. E.g.
+### Deployment Instructions
+
+1. Clone the repository and execute the installation script:
 ```bash
-dx serve --platform desktop
+./install.sh
+```
+2. Initialize the DevBind background proxy service:
+```bash
+devbind start
+```
+3. Execute the graphical user interface:
+```bash
+devbind-gui
 ```
 
+## Operational Usage
+
+### Command-Line Interface (CLI)
+```bash
+# Register a domain mapping (appends .local suffix automatically)
+devbind add myapp 8080
+
+# Install Root CA into system trust stores
+devbind trust
+
+# List current active mappings
+devbind list
+
+# Remove Root CA from system trust stores
+devbind untrust
+```
+
+### Graphical User Interface (GUI)
+The `devbind-gui` executable provides a centralized dashboard for the management of domain mappings and the administrative status of the Root CA.
+
+## TLD Enforcement
+DevBind enforces the usage of the `.local` top-level domain (TLD) to ensure consistency across development environments and to mitigate potential naming conflicts with public internet domains.
+
+## Licensing
+This project is licensed under the MIT License. Refer to the [LICENSE](LICENSE) file for the full text of the license agreement.

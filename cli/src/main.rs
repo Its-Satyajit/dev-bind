@@ -29,6 +29,8 @@ enum Commands {
     Start,
     /// Install DevBind Root CA into system and browser trust stores
     Trust,
+    /// Uninstall DevBind Root CA from system and browser trust stores
+    Untrust,
 }
 
 fn get_config_path() -> PathBuf {
@@ -51,10 +53,16 @@ async fn main() -> Result<()> {
 
     match &cli.command {
         Commands::Add { domain, port } => {
+            let mut domain = domain.clone();
+            if !domain.ends_with(".local") {
+                domain.push_str(".local");
+                info!("Automatically appended .local to domain: {}", domain);
+            }
+
             let mut config = DevBindConfig::load(&config_path)?;
 
             // Allow updating existing port if it already exists
-            if let Some(route) = config.routes.iter_mut().find(|r| r.domain == *domain) {
+            if let Some(route) = config.routes.iter_mut().find(|r| r.domain == domain) {
                 route.port = *port;
                 info!("Updated {} to port {}", domain, port);
             } else {
@@ -120,6 +128,12 @@ async fn main() -> Result<()> {
             info!("Initiating Root CA trust installation...");
             if let Err(e) = devbind_core::trust::install_root_ca(&config_dir) {
                 error!("Failed to install trust: {}", e);
+            }
+        }
+        Commands::Untrust => {
+            info!("Initiating Root CA trust removal...");
+            if let Err(e) = devbind_core::trust::uninstall_root_ca() {
+                error!("Failed to uninstall trust: {}", e);
             }
         }
     }

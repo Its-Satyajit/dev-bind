@@ -60,27 +60,43 @@ fn App() -> Element {
                 div { class: "bg-white rounded-lg shadow-lg p-6",
                     div { class: "flex justify-between items-center mb-6",
                         h1 { class: "text-2xl font-bold text-gray-800", "DevBind Dashboard" }
-                        button {
-                            class: "bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 flex items-center gap-2",
-                            onclick: move |_| {
-                                let path = get_config_path();
-                                let mut dir = path.clone();
-                                dir.pop();
+                            button {
+                                class: "bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 flex items-center gap-2",
+                                onclick: move |_| {
+                                    let path = get_config_path();
+                                    let mut dir = path.clone();
+                                    dir.pop();
 
-                                match devbind_core::trust::install_root_ca(&dir) {
-                                    Ok(_) => {
-                                        success_msg.set("Root CA Trusted Successfully!".to_string());
-                                        error_msg.set(String::new());
-                                    },
-                                    Err(e) => {
-                                        error_msg.set(format!("Trust failed: {}", e));
-                                        success_msg.set(String::new());
+                                    match devbind_core::trust::install_root_ca(&dir) {
+                                        Ok(_) => {
+                                            success_msg.set("Root CA Trusted Successfully!".to_string());
+                                            error_msg.set(String::new());
+                                        },
+                                        Err(e) => {
+                                            error_msg.set(format!("Trust failed: {}", e));
+                                            success_msg.set(String::new());
+                                        }
                                     }
-                                }
-                            },
-                            "🔒 Trust Root CA"
+                                },
+                                "🔒 Trust Root CA"
+                            }
+                            button {
+                                class: "bg-red-600 text-white px-4 py-2 rounded shadow hover:bg-red-700 flex items-center gap-2 ml-2",
+                                onclick: move |_| {
+                                    match devbind_core::trust::uninstall_root_ca() {
+                                        Ok(_) => {
+                                            success_msg.set("Root CA Untrusted Successfully!".to_string());
+                                            error_msg.set(String::new());
+                                        },
+                                        Err(e) => {
+                                            error_msg.set(format!("Untrust failed: {}", e));
+                                            success_msg.set(String::new());
+                                        }
+                                    }
+                                },
+                                "🔓 Untrust Root CA"
+                            }
                         }
-                    }
 
                     if !error_msg().is_empty() {
                         div { class: "mb-4 p-4 text-sm text-red-700 bg-red-100 rounded-lg", "{error_msg()}" }
@@ -96,7 +112,7 @@ fn App() -> Element {
                                 label { class: "block text-sm font-medium text-gray-700 mb-1", "Domain" }
                                 input {
                                     class: "w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border",
-                                    placeholder: "my-app.dev.local",
+                                    placeholder: "my-app.local",
                                     value: "{new_domain()}",
                                     oninput: move |evt| new_domain.set(evt.value().clone())
                                 }
@@ -115,8 +131,11 @@ fn App() -> Element {
                                 onclick: move |_| {
                                     let mut cfg = config();
                                     if let Ok(port) = new_port().parse::<u16>() {
-                                        let domain = new_domain();
+                                        let mut domain = new_domain();
                                         if !domain.is_empty() {
+                                            if !domain.ends_with(".local") {
+                                                domain.push_str(".local");
+                                            }
                                             if let Some(route) = cfg.routes.iter_mut().find(|r| r.domain == domain) {
                                                 route.port = port;
                                             } else {

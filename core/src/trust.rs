@@ -94,3 +94,78 @@ echo "Trust installation complete!"
         ))
     }
 }
+
+pub fn uninstall_root_ca() -> Result<()> {
+    let script_content = r#"#!/bin/bash
+set -e
+echo "Removing DevBind CA from system certificates..."
+if command -v update-ca-trust &> /dev/null; then
+    # Fedora/Arch/RHEL
+    rm -f /etc/ca-certificates/trust-source/anchors/devbind.crt
+    update-ca-trust
+elif command -v update-ca-certificates &> /dev/null; then
+    # Debian/Ubuntu
+    rm -f /usr/local/share/ca-certificates/devbind.crt
+    update-ca-certificates
+else
+    echo "Warning: Could not find system CA update tool."
+fi
+
+echo "Removing DevBind CA from NSS databases (Chrome/Firefox/Brave/Zen)..."
+if command -v certutil &> /dev/null; then
+    find /home/*/.mozilla /home/*/.pki/nssdb /home/*/.zen /home/*/.waterfox /home/*/.librewolf /home/*/.var/app /home/*/snap -maxdepth 6 -type f \( -name "cert9.db" -o -name "cert8.db" \) 2>/dev/null | while read certDB; do
+        certdir=$(dirname "${certDB}")
+        echo "Removing from ${certdir}..."
+        certutil -D -n "DevBind Root CA" -d sql:"${certdir}" || true
+    done
+else
+    echo "Warning: 'certutil' is not installed. Browser specific DBs skipped."
+fi
+echo "DevBind CA removal complete!"
+"#;
+
+    let mut temp_script = tempfile::NamedTempFile::new()?;
+    temp_script.write_all(script_content.as_bytes())?;
+
+    let temp_path = temp_script.into_temp_path();
+    let temp_path_str = temp_path.to_str().unwrap();
+
+    // Make the script executable
+    Command::new("chmod")
+        .arg("+x")
+        .arg(temp_path_str)
+        .status()?;
+
+    // Choose pkexec if in a GUI session and available, otherwise fallback to sudo
+    let use_pkexec = std::env::var("DISPLAY").is_ok()
+        && Command::new("which")
+            .arg("pkexec")
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+
+    let status = if use_pkexec {
+        info!("Requesting elevated privileges via pkexec for removal...");
+        Command::new("pkexec")
+            .arg(temp_path_str)
+            .status()
+            .context("Failed to run pkexec")?
+    } else {
+        info!("Requesting elevated privileges via sudo for removal...");
+        Command::new("sudo")
+            .arg(temp_path_str)
+            .status()
+            .context("Failed to run sudo")?
+    };
+
+    if status.success() {
+        info!("Root CA successfully removed from system trust store.");
+        Ok(())
+    } else {
+        error!("Failed to remove Root CA from system trust store.");
+        Err(anyhow::anyhow!(
+            "Privilege escalation failed or script error. Status: {}",
+            status
+        ))
+    }
+}
