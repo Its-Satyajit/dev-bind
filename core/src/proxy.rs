@@ -142,10 +142,14 @@ impl ProxyServer {
                             .split(':')
                             .next()
                             .unwrap_or("")
-                            .to_string(); // Owned string to avoid borrowing req
+                            .trim_end_matches('.')
+                            .to_lowercase();
 
                         // Find the corresponding local port for this domain
-                        let target_port = routes.iter().find(|r| r.domain == host).map(|r| r.port);
+                        let target_port = routes
+                            .iter()
+                            .find(|r| r.domain.to_lowercase() == host)
+                            .map(|r| r.port);
 
                         if let Some(port) = target_port {
                             info!("Proxying {} to 127.0.0.1:{}", host, port);
@@ -192,7 +196,11 @@ impl ProxyServer {
                                 }
                             }
                         } else {
-                            warn!("Unknown host requested: {}", host);
+                            warn!(
+                                "Unknown host requested: '{}'. Registered: {:?}",
+                                host,
+                                routes.iter().map(|r| &r.domain).collect::<Vec<_>>()
+                            );
                             Ok(Response::builder()
                                 .status(404)
                                 .body(Full::new(Bytes::from(

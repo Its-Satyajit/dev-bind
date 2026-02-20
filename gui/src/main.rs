@@ -1,4 +1,4 @@
-use devbind_core::config::{DevBindConfig, RouteConfig};
+use devbind_core::config::DevBindConfig;
 use devbind_core::hosts::HostsManager;
 use dioxus::prelude::*;
 use std::path::PathBuf;
@@ -32,6 +32,7 @@ fn App() -> Element {
     let mut error_msg = use_signal(|| String::new());
     let mut success_msg = use_signal(|| String::new());
     let mut active_tab = use_signal(|| "dashboard");
+    let mut hosts_content = use_signal(|| String::new());
 
     let update_config = move |cfg: DevBindConfig,
                               mut config_sig: Signal<DevBindConfig>,
@@ -68,6 +69,7 @@ fn App() -> Element {
             --accent-hover: #1d99f3;
             --border: #4d4d4d;
             --radius: 2px;
+            --tooltip-bg: #1a1c1e;
         }
 
         @media (prefers-color-scheme: light) {
@@ -80,6 +82,7 @@ fn App() -> Element {
                 --accent: #3daee9;
                 --accent-hover: #1d99f3;
                 --border: #cdd3da;
+                --tooltip-bg: #232629;
             }
         }
 
@@ -98,11 +101,63 @@ fn App() -> Element {
             transition: all 0.2s ease;
         }
         .btn-action:hover { background-color: var(--accent-hover); }
-        input::placeholder { color: var(--text-muted); opacity: 0.5; }
+        input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 0.5; }
+        textarea.terminal-input {
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-family: 'JetBrains Mono', monospace;
+            padding: 1rem;
+            width: 100%;
+            height: 300px;
+            outline: none;
+            resize: none;
+        }
+        .domain-link {
+            transition: all 0.1s ease;
+            cursor: pointer;
+        }
+        .domain-link:hover {
+            text-decoration: underline;
+            color: var(--accent);
+        }
+
+        /* Custom Tooltip Styles */
+        [data-tooltip] {
+            position: relative;
+        }
+        [data-tooltip]::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--tooltip-bg);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            z-index: 100;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+        }
+        [data-tooltip]:hover::after {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(-4px);
+        }
     "#;
 
     let dashboard_active = active_tab() == "dashboard";
     let security_active = active_tab() == "security";
+    let hosts_active = active_tab() == "hosts";
 
     rsx! {
         style { "{style_content}" }
@@ -121,11 +176,24 @@ fn App() -> Element {
                 nav { class: "flex-1 space-y-px",
                     button {
                         class: if dashboard_active { "w-full text-left px-8 py-3 bg-[var(--accent)] text-white font-medium" } else { "w-full text-left px-8 py-3 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-all text-sm" },
+                        "data-tooltip": "Manage proxy domains and local ports",
                         onclick: move |_| active_tab.set("dashboard"),
                         "MAPPINGS"
                     }
                     button {
+                        class: if hosts_active { "w-full text-left px-8 py-3 bg-[var(--accent)] text-white font-medium" } else { "w-full text-left px-8 py-3 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-all text-sm" },
+                        "data-tooltip": "Edit system /etc/hosts file directly",
+                        onclick: move |_| {
+                            active_tab.set("hosts");
+                            if let Ok(content) = std::fs::read_to_string("/etc/hosts") {
+                                hosts_content.set(content);
+                            }
+                        },
+                        "HOSTS FILE"
+                    }
+                    button {
                         class: if security_active { "w-full text-left px-8 py-3 bg-[var(--accent)] text-white font-medium" } else { "w-full text-left px-8 py-3 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-all text-sm" },
+                        "data-tooltip": "Install or Revoke Root SSL Certificate trust",
                         onclick: move |_| active_tab.set("security"),
                         "SSL TRUST"
                     }
@@ -160,13 +228,12 @@ fn App() -> Element {
                 div { class: "p-10 flex-1 overflow-y-auto",
                     if dashboard_active {
                         div { class: "max-w-4xl space-y-10",
-
-                            // Horizontal Input Bar
                             div { class: "flex items-center gap-4 bg-[var(--bg-sidebar)] p-2 rounded border border-[var(--border)]",
                                 span { class: "mono text-[var(--accent)] ml-4", "NEW>" }
                                 input {
                                     class: "flex-1 bg-transparent border-none text-sm px-4 py-2 mono text-[var(--text-main)] outline-none",
                                     placeholder: "domain.local",
+                                    "data-tooltip": "Enter the local domain name",
                                     value: "{new_domain()}",
                                     oninput: move |e| new_domain.set(e.value().clone())
                                 }
@@ -174,11 +241,13 @@ fn App() -> Element {
                                 input {
                                     class: "w-24 bg-transparent border-none text-sm px-4 py-2 mono text-[var(--text-main)] outline-none text-center",
                                     placeholder: "3000",
+                                    "data-tooltip": "Enter the backend service port",
                                     value: "{new_port()}",
                                     oninput: move |e| new_port.set(e.value().clone())
                                 }
                                 button {
                                     class: "btn-action px-6 py-2 text-xs font-bold mono",
+                                    "data-tooltip": "Create or Update this mapping",
                                     onclick: move |_| {
                                         let mut cfg = config();
                                         if let Ok(p) = new_port().parse::<u16>() {
@@ -186,7 +255,7 @@ fn App() -> Element {
                                             if !d.is_empty() {
                                                 if !d.ends_with(".local") { d.push_str(".local"); }
                                                 if let Some(r) = cfg.routes.iter_mut().find(|r| r.domain == d) { r.port = p; }
-                                                else { cfg.routes.push(RouteConfig { domain: d, port: p }); }
+                                                else { cfg.routes.push(devbind_core::config::RouteConfig { domain: d, port: p }); }
                                                 update_config(cfg, config, error_msg);
                                                 new_domain.set(String::new());
                                                 new_port.set(String::new());
@@ -198,7 +267,6 @@ fn App() -> Element {
                                 }
                             }
 
-                            // Active Mappings Table
                             div { class: "terminal-block overflow-hidden",
                                 div { class: "bg-black/5 px-8 py-3 border-b border-[var(--border)] flex justify-between items-center",
                                     span { class: "mono text-[9px] font-bold text-[var(--text-muted)]", "ACTIVE_MAPPINGS" }
@@ -212,20 +280,34 @@ fn App() -> Element {
                                             tbody {
                                                 for r in config().routes {
                                                     tr { class: "hover:bg-black/5 group transition-colors",
+                                                        key: "{r.domain}",
                                                         td { class: "px-4 py-3",
                                                             span { class: "text-[var(--accent)] mr-2", ">" }
-                                                            "{r.domain}"
+                                                            span {
+                                                                class: "domain-link font-medium",
+                                                                "data-tooltip": "Click to open in default browser",
+                                                                onclick: {
+                                                                    let domain = r.domain.clone();
+                                                                    move |_| {
+                                                                        let _ = open::that(format!("https://{}", domain));
+                                                                    }
+                                                                },
+                                                                "{r.domain}"
+                                                            }
                                                         }
                                                         td { class: "px-4 py-3 text-[var(--text-muted)]", "localhost:{r.port}" }
                                                         td { class: "px-4 py-3 text-right",
                                                             button {
                                                                 class: "text-red-500 hover:text-red-600 transition-all font-bold px-2",
-                                                                onclick: move |_| {
-                                                                    let mut cfg = config();
-                                                                    let d = r.domain.clone();
-                                                                    cfg.routes.retain(|x| x.domain != d);
-                                                                    update_config(cfg, config, error_msg);
-                                                                    success_msg.set("DELETED".to_string());
+                                                                "data-tooltip": "Remove this mapping and remove from hosts file",
+                                                                onclick: {
+                                                                    let domain = r.domain.clone();
+                                                                    move |_| {
+                                                                        let mut cfg = config();
+                                                                        cfg.routes.retain(|x| x.domain != domain);
+                                                                        update_config(cfg, config, error_msg);
+                                                                        success_msg.set("DELETED".to_string());
+                                                                    }
                                                                 },
                                                                 "[ DELETE ]"
                                                             }
@@ -237,6 +319,68 @@ fn App() -> Element {
                                     }
                                 }
                             }
+                        }
+                    } else if hosts_active {
+                        div { class: "max-w-4xl space-y-6",
+                            div { class: "terminal-block p-8 space-y-4",
+                                h3 { class: "mono text-sm font-bold flex items-center gap-3",
+                                    span { class: "text-[var(--accent)]", "#" }
+                                    "HOSTS_FILE_EDITOR"
+                                }
+                                textarea {
+                                    class: "terminal-input",
+                                    value: "{hosts_content()}",
+                                    oninput: move |e| hosts_content.set(e.value().clone())
+                                }
+                                div { class: "flex gap-4 pt-2",
+                                    button {
+                                        class: "btn-action px-8 py-3 mono text-xs font-bold",
+                                        "data-tooltip": "Save manual changes to /etc/hosts (requires sudo)",
+                                        onclick: move |_| {
+                                            let content = hosts_content();
+                                            let final_content = content.clone();
+                                            match std::fs::write("/tmp/hosts_new", &final_content) {
+                                                Ok(_) => {
+                                                    let status = std::process::Command::new("pkexec")
+                                                        .arg("cp")
+                                                        .arg("/tmp/hosts_new")
+                                                        .arg("/etc/hosts")
+                                                        .status();
+                                                    if let Ok(s) = status {
+                                                        if s.success() {
+                                                            success_msg.set("HOSTS_SAVED".to_string());
+                                                            error_msg.set(String::new());
+                                                        } else {
+                                                            error_msg.set("ELEVATION_FAILED".to_string());
+                                                        }
+                                                    }
+                                                },
+                                                Err(e) => error_msg.set(format!("WRITE_FAIL: {}", e))
+                                            }
+                                        },
+                                        "SAVE CHANGES"
+                                    }
+                                    button {
+                                        class: "border border-red-500/20 text-red-500/60 px-8 py-3 mono text-xs font-bold rounded",
+                                        "data-tooltip": "Reset /etc/hosts by removing all DevBind entries",
+                                        onclick: move |_| {
+                                            let manager = HostsManager::new(std::path::Path::new("/etc/hosts"));
+                                            match manager.update_routes(&[]) {
+                                                Ok(_) => {
+                                                    success_msg.set("RESTORED_DEFAULTS".to_string());
+                                                    error_msg.set(String::new());
+                                                    if let Ok(content) = std::fs::read_to_string("/etc/hosts") {
+                                                        hosts_content.set(content);
+                                                    }
+                                                },
+                                                Err(e) => error_msg.set(format!("RESTORE_FAIL: {}", e))
+                                            }
+                                        },
+                                        "RESTORE DEFAULTS"
+                                    }
+                                }
+                            }
+                            p { class: "mono text-[10px] text-amber-500/50 px-4", "# NOTE: Editing system files requires administrative authorization." }
                         }
                     } else if security_active {
                         div { class: "max-w-2xl space-y-10",
@@ -252,6 +396,7 @@ fn App() -> Element {
                                 div { class: "flex gap-4 pt-4",
                                     button {
                                         class: "btn-action px-8 py-3 mono text-xs font-bold",
+                                        "data-tooltip": "Install and trust DevBind Root CA (elevated)",
                                         onclick: move |_| {
                                             let path = get_config_path();
                                             let mut dir = path.clone(); dir.pop();
@@ -264,6 +409,7 @@ fn App() -> Element {
                                     }
                                     button {
                                         class: "border border-red-500/20 text-red-500/60 px-8 py-3 mono text-xs font-bold rounded",
+                                        "data-tooltip": "Remove DevBind Root CA from system trust store",
                                         onclick: move |_| {
                                             match devbind_core::trust::uninstall_root_ca() {
                                                 Ok(_) => { success_msg.set("CA_REVOKED".to_string()); error_msg.set(String::new()); },
@@ -274,7 +420,6 @@ fn App() -> Element {
                                     }
                                 }
                             }
-                            p { class: "mono text-[10px] text-amber-500/50 px-4", "# Auth prompt will trigger for system store modifications." }
                         }
                     }
                 }
