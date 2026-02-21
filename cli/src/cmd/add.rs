@@ -18,6 +18,7 @@ pub fn handle_add(mut domain: String, port: u16, config_path: &PathBuf) -> Resul
         config.routes.push(RouteConfig {
             domain: domain.clone(),
             port,
+            ephemeral: false,
         });
         info!("Added {} to port {}", domain, port);
     }

@@ -31,6 +31,8 @@ impl Default for ProxyConfig {
 pub struct RouteConfig {
     pub domain: String,
     pub port: u16,
+    #[serde(default)]
+    pub ephemeral: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -70,12 +72,31 @@ impl DevBindConfig {
         fs::write(path, content).with_context(|| format!("Failed to write config to {:?}", path))
     }
 
-    /// Add a route (used for ephemeral sessions — caller decides whether to persist).
+    /// Add a route (used for permanent routes).
     pub fn add_route(&mut self, domain: String, port: u16) {
         if let Some(route) = self.routes.iter_mut().find(|r| r.domain == domain) {
             route.port = port;
+            route.ephemeral = false;
         } else {
-            self.routes.push(RouteConfig { domain, port });
+            self.routes.push(RouteConfig {
+                domain,
+                port,
+                ephemeral: false,
+            });
+        }
+    }
+
+    /// Add an ephemeral route (used for devbind run).
+    pub fn add_ephemeral_route(&mut self, domain: String, port: u16) {
+        if let Some(route) = self.routes.iter_mut().find(|r| r.domain == domain) {
+            route.port = port;
+            route.ephemeral = true;
+        } else {
+            self.routes.push(RouteConfig {
+                domain,
+                port,
+                ephemeral: true,
+            });
         }
     }
 

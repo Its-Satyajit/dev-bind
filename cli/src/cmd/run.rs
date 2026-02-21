@@ -42,7 +42,7 @@ pub async fn handle_run(name: &str, command: &[String], config_path: &PathBuf) -
     let session = EphemeralSession::new(name)?;
 
     // Register ephemeral route in config.toml so the proxy can route it
-    config.add_route(session.domain.clone(), session.port);
+    config.add_ephemeral_route(session.domain.clone(), session.port);
     if let Err(e) = config.save(config_path) {
         warn!("Could not save ephemeral route to config: {}", e);
     }
@@ -115,7 +115,7 @@ pub async fn handle_run(name: &str, command: &[String], config_path: &PathBuf) -
             }
         }
         _ = tokio::signal::ctrl_c() => {
-            println!("\n  ⏹  Stopping {} (Ctrl-C received)...", command[0]);
+            println!("\n  [STOP]  Stopping {} (Ctrl-C received)...", command[0]);
             let _ = child.kill().await;
             None
         }

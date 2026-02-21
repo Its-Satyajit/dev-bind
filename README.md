@@ -2,7 +2,7 @@
 
 **DevBind** is a high-performance, secure local development reverse proxy written in Rust. It eliminates the friction of modern local development by mapping custom `.test` domains to your dev server ports with **Automatic HTTPS** — no more browser security warnings, no manual certificate management, and no `/etc/hosts` headaches.
 
-![DevBind Mappings Interface - easily manage your local domains](images/mapping_screen.png)
+![DevBind Mappings Interface - easily manage your local domains](images/gui_mapping_screen.png)
 
 ## Why DevBind?
 
@@ -14,6 +14,9 @@ Modern web development requires HTTPS, but setting it up locally is a nightmare.
 | **[NO]** Importing Root CAs into every browser manually | **[YES]** **One-click trust** for system and browser stores |
 | **[NO]** Manually editing `/etc/hosts` for every new project | **[YES]** **Zero-Config DNS** resolution managed by DevBind |
 | **[NO]** Scary "Your connection is not private" warnings | **[YES]** **Green locks** and valid HTTPS everywhere |
+
+![Green Lock LocalHTTPS Verification Example 1](images/browser_https___app.test.png)
+![Green Lock LocalHTTPS Verification Example 2](images/browser_https___nextjsapp.test.png)
 
 ## Key Features
 
@@ -28,19 +31,26 @@ Modern web development requires HTTPS, but setting it up locally is a nightmare.
 - **Background Daemon** — Runs as a standard systemd user service for seamless autostart without needing root.
 - **Hybrid Interface** — Choose between a high-performance CLI or a beautiful Dioxus-powered GUI.
 
-## Requirements
+## System Requirements
 
-Install `libnss3-tools` for browser trust management:
+DevBind is built deeply into the Linux networking stack for a seamless, zero-config experience.
+
+- **Supported OS**: Linux (Tested on CachyOS, Arch, Manjaro, Ubuntu, Debian, Pop!_OS)
+- **Init System**: `systemd` (Required for background daemon management)
+- **Network Manager**: `NetworkManager` (Required for zero-config DNS resolution using `dnsmasq` integration)
+- **Privilege Escalation**: A working `polkit` agent (Required for GUI root operations like `pkexec`)
+
+### Dependencies
+
+Install `nss` and build essentials for compiling DevBind:
 
 ```bash
-# Arch / Manjaro
-sudo pacman -S nss
+# Arch / Manjaro / CachyOS
+sudo pacman -S nss base-devel openssl
 
 # Debian / Ubuntu / Pop!_OS
-sudo apt install libnss3-tools
+sudo apt install libnss3-tools build-essential libssl-dev pkg-config
 ```
-
-A working `polkit` agent is required for GUI privilege escalation (`pkexec`).
 
 ## Installation
 
@@ -134,12 +144,18 @@ devbind trust
   ### Domain Mappings
   Add, view, and remove your `domain → port` mappings. Domains are clickable, opening your secure local site instantly in your default browser.
 
-  ![Mappings Screen - visualize and manage your local domains](images/mapping_screen.png)
+  ![Mappings Screen - visualize and manage your local domains](images/gui_mapping_screen.png)
+
+  ### Smart DNS & SSL Management
+  Check the status of the DevBind local DNS resolver and install the local Root CA in seconds, so you never see another browser security warning.
+
+  ![DNS Screen - manage DNS integration](images/gui_dns_screen.png)
+  ![SSL Trust Screen - manage root CA](images/gui_ssl_trust_screen.png)
 
   ### Background Daemon Management
   Turn DevBind into a background service that just works. No long-running terminal tabs required.
 
-  ![Daemon Screen - manage the background process for DevBind](images/demon_sereen.png)
+  ![Daemon Screen - manage the background process for DevBind](images/gui_daemon_screen.png)
 
   | Action | Description |
   |---|---|
@@ -149,7 +165,7 @@ devbind trust
 
   ### CLI Quick Reference
 
-  ![DevBind CLI Interface examples](images/cli.png)
+  ![DevBind CLI Interface examples](images/command_devbind.png)
 
   | Command | Description |
   |---|---|
@@ -158,6 +174,9 @@ devbind trust
   | `devbind run <name> <cmd...>` | Dynamically allocate a free port, proxy HTTPS, and run `<cmd>` with `$PORT` injected |
   | `devbind gui` | Launch the visual DevBind control panel |
   | `devbind list` | Show all active domain mappings |
+
+  ![Listing CLI active domains](images/command_devbind_list.png)
+
   | `devbind trust` | Install Root CA into system & browser trust stores |
   | `devbind untrust` | Remove Root CA from all trust stores |
 

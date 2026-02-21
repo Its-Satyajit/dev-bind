@@ -6,13 +6,21 @@ Here are solutions to the most common issues you might encounter while using Dev
 
 ### Framework "Bad Gateway" or "Invalid Host" (Vite, Next.js)
 Modern frameworks strictly validate the `Host` header to prevent DNS rebinding attacks. When DevBind proxies your `.test` domain, the framework might reject it.
-- **Vite (React/Vue/Svelte)**: Vite binds to `localhost` and `::1` (IPv6) by default. You must pass `--host` to bind to IPv4 so DevBind can reach it. You also need to whitelist `.test` domains in `vite.config.js`:
+- **Vite (React/Vue/Svelte/TanStack)**: Vite binds to `localhost` and `::1` (IPv6) by default. You must pass `--host` to bind to IPv4 so DevBind can reach it.
+
+  ![Vite Bad Gateway Error](images/browser_https___tanstackstart.test_vite_error.png)
+
+  You also need to whitelist `.test` domains in `vite.config.js`:
   ```javascript
   export default defineConfig({
     server: { allowedHosts: ['react.test'] }
   })
   ```
+  ![Fixing Vite Config in Zed Editor](images/zed_editor_vite_fix_vite_config_js_ts.png)
+
   *Example:* `devbind run react pnpm dev --port $PORT --host`
+
+  ![Fixed Vite Local Server](images/browser_https___tanstackstart.test_vite_error_fixed.png)
 - **Next.js**: Automatically works, but you may see a CLI warning. To silence it, add `allowedDevOrigins: ["*.test"]` to your Next config's experimental features.
 
 ## System & Connectivity Issues

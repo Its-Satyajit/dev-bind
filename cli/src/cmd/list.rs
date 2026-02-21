@@ -15,7 +15,8 @@ pub fn handle_list(config_path: &PathBuf) -> Result<()> {
         println!("  (no routes configured)");
     } else {
         for route in &config.routes {
-            println!("{:<25} | {:<8}", route.domain, route.port);
+            let tag = if route.ephemeral { " [EPHEMERAL]" } else { "" };
+            println!("{:<25} | {:<8}{}", route.domain, route.port, tag);
         }
     }
     Ok(())

@@ -22,6 +22,7 @@ fn test_handle_list_with_routes_does_not_error() {
     config.routes.push(RouteConfig {
         domain: "app.test".to_string(),
         port: 3000,
+        ephemeral: false,
     });
     config.save(&config_path).unwrap();
 

@@ -50,8 +50,8 @@ pub fn MappingsTab(
                             let mut d = new_domain();
                             if !d.is_empty() {
                                 if !d.ends_with(".test") { d.push_str(".test"); }
-                                if let Some(r) = cfg.routes.iter_mut().find(|r| r.domain == d) { r.port = p; }
-                                else { cfg.routes.push(RouteConfig { domain: d, port: p }); }
+                                if let Some(r) = cfg.routes.iter_mut().find(|r| r.domain == d) { r.port = p; r.ephemeral = false; }
+                                else { cfg.routes.push(RouteConfig { domain: d, port: p, ephemeral: false }); }
                                 update_config(cfg, config, error_msg);
                                 new_domain.set(String::new());
                                 new_port.set(String::new());
@@ -87,6 +87,12 @@ pub fn MappingsTab(
                                                     move |_| { let _ = open::that(format!("https://{}", domain)); }
                                                 },
                                                 "{r.domain}"
+                                            }
+                                            if r.ephemeral {
+                                                span {
+                                                    class: "ml-2 text-[9px] font-bold text-white bg-blue-500/80 rounded px-1.5 py-0.5 border border-blue-400/30",
+                                                    "RUNNING"
+                                                }
                                             }
                                         }
                                         td { class: "px-4 py-3 text-[var(--text-muted)]", "localhost:{r.port}" }
