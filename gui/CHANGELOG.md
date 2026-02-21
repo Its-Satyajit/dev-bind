@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/Its-Satyajit/dev-bind/compare/devbind-gui-v0.2.0...devbind-gui-v0.3.0) (2026-02-21)
+
+
+### Features
+
+* **ui:** center main content, add footer, bump core & deps, and make CLI version optional ([7567089](https://github.com/Its-Satyajit/dev-bind/commit/7567089eed420af82e43f69684b16774547e185a))
+* **ui:** center main content, add footer, bump core & deps, and make CLI version optional ([101d2ba](https://github.com/Its-Satyajit/dev-bind/commit/101d2ba31ca4a23c9def15d2d3f583ec0fbf4807))
+
 ## [0.2.0](https://github.com/Its-Satyajit/dev-bind/compare/devbind-gui-v0.1.0...devbind-gui-v0.2.0) (2026-02-21)
 
 
