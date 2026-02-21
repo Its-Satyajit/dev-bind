@@ -43,6 +43,10 @@ Different frameworks run their development servers differently. Below is a refer
 
 ![Running a TanStack Start App with DevBind](images/command_devbind_run_tanstackstart.png)
 
+If you don't configure Vite correctly, you will run into a Bad Gateway error:
+
+![Vite Bad Gateway Error](images/browser_https___tanstackstart.test_vite_error.png)
+
 Vite 5+ validates the `Host` header by default. Add your domain to `vite.config.js/ts`:
 
 ```javascript
@@ -52,6 +56,10 @@ export default defineConfig({
   }
 })
 ```
+
+Once correctly configured, your application will securely load behind HTTPS!
+
+![Fixed Vite Local Server](images/browser_https___tanstackstart.test_vite_error_fixed.png)
 
 ### Allowing Your `.test` Domain (Angular)
 
