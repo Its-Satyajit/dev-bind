@@ -45,3 +45,6 @@ Ensure `systemd --user` is running in your session:
 ```bash
 systemctl --user status
 ```
+
+### macOS & Windows Support
+Since support for these platforms is experimental, many automated commands (`devbind install`, `devbind trust`) will not work. Ensure you have followed the manual setup steps in the [README](README.md#other-platforms-macos--windows).

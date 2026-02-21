@@ -36,9 +36,10 @@ Modern web development requires HTTPS, but setting it up locally is a nightmare.
 DevBind is built deeply into the Linux networking stack for a seamless, zero-config experience.
 
 - **Supported OS**: Linux (Tested on CachyOS, Arch, Manjaro, Ubuntu, Debian, Pop!_OS)
-- **Init System**: `systemd` (Required for background daemon management)
-- **Network Manager**: `NetworkManager` (Required for zero-config DNS resolution using `dnsmasq` integration)
-- **Privilege Escalation**: A working `polkit` agent (Required for GUI root operations like `pkexec`)
+  - Experimental support for macOS and Windows (Manual setup required).
+- **Init System**: `systemd` (Required for background daemon management on Linux)
+- **Network Manager**: `NetworkManager` (Required for zero-config DNS resolution on Linux)
+- **Privilege Escalation**: A working `polkit` agent (Required for GUI root operations on Linux)
 
 ### Dependencies
 
@@ -72,6 +73,54 @@ If you are running on a server without graphical dependencies (like GTK or WebKi
 3. Copy the compiled binaries to `~/.local/bin`
 4. Grant `CAP_NET_BIND_SERVICE` so DevBind can bind ports `80`/`443` without root
 5. Hook into your `.desktop` application menu (unless `--cli-only` is passed)
+
+### Other Platforms (macOS & Windows)
+
+> [!IMPORTANT]
+> DevBind is primarily built for Linux. Support for macOS and Windows is **experimental** and requires manual configuration for DNS and SSL trust.
+
+#### Installation
+You must have the [Rust toolchain](https://rustup.rs/) installed.
+```bash
+git clone https://github.com/Its-Satyajit/dev-bind.git
+cd dev-bind
+cargo build --release
+```
+The binaries will be located in `target/release/devbind` and `target/release/devbind-gui`.
+
+#### Manual DNS Setup
+
+**macOS:**
+Create a file at `/etc/resolver/test` with the following content (requires `sudo`):
+```text
+nameserver 127.0.2.1
+```
+This tells macOS to route all `*.test` queries to DevBind's embedded DNS server.
+
+**Windows:**
+Windows does not support a native "resolver" directory like macOS. You must manually add entries to `C:\Windows\System32\drivers\etc\hosts`:
+```text
+127.0.0.1 myapp.test
+127.0.0.1 anotherapp.test
+```
+
+#### Manual SSL Trust
+
+1. Start DevBind once to generate the Root CA: `devbind start`.
+2. Locate the Root CA file:
+   - macOS: `~/Library/Application Support/devbind/certs/devbind-rootCA.crt`
+   - Windows: `%APPDATA%\devbind\certs\devbind-rootCA.crt`
+3. **macOS**: Import to Keychain Access and set to "Always Trust".
+   ```bash
+   sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ~/Library/Application\ Support/devbind/certs/devbind-rootCA.crt
+   ```
+4. **Windows**: Import to "Trusted Root Certification Authorities" using `certutil`:
+   ```powershell
+   certutil -addstore -f "Root" %APPDATA%\devbind\certs\devbind-rootCA.crt
+   ```
+
+> [!NOTE]
+> These paths and commands are based on the `dirs` crate's platform-specific behavior. Since the I don't have access to macOS or Windows devices for testing, please [open an issue](https://github.com/Its-Satyajit/dev-bind/issues) if you encounter any problems.
 
 ### Reinstalling / Updating
 
