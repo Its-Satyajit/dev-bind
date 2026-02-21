@@ -20,3 +20,7 @@ pub fn handle_list(config_path: &PathBuf) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "list_tests.rs"]
+mod tests;

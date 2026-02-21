@@ -32,3 +32,7 @@ pub fn which_devbind() -> String {
 pub fn is_proxy_running() -> bool {
     std::net::TcpStream::connect("127.0.0.1:443").is_ok()
 }
+
+#[cfg(test)]
+#[path = "utils_tests.rs"]
+mod tests;

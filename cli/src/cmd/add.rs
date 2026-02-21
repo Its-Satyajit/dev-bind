@@ -26,3 +26,7 @@ pub fn handle_add(mut domain: String, port: u16, config_path: &PathBuf) -> Resul
     println!("  ✅  {} → localhost:{}", domain, port);
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "add_tests.rs"]
+mod tests;
