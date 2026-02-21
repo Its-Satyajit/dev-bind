@@ -21,6 +21,7 @@ Modern frameworks strictly validate the `Host` header to prevent DNS rebinding a
   *Example:* `devbind run react pnpm dev --port $PORT --host`
 
   ![Fixed Vite Local Server](images/browser_https___tanstackstart.test_vite_error_fixed.png)
+
 - **Next.js**: Automatically works, but you may see a CLI warning. To silence it, add `allowedDevOrigins: ["*.test"]` to your Next config's experimental features.
 
 ## System & Connectivity Issues

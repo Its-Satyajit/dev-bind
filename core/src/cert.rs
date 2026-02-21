@@ -155,3 +155,7 @@ fn write_private_key(path: &std::path::Path, data: &[u8]) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "cert_tests.rs"]
+mod cert_tests;

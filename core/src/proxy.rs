@@ -298,3 +298,7 @@ fn build_route_map(config: &DevBindConfig) -> HashMap<String, u16> {
         .map(|r| (r.domain.to_lowercase(), r.port))
         .collect()
 }
+
+#[cfg(test)]
+#[path = "proxy_tests.rs"]
+mod proxy_tests;
