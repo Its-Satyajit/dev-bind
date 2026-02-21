@@ -60,11 +60,18 @@ cd dev-bind
 ./install.sh
 ```
 
+**Headless Edition (CLI Only):**
+If you are running on a server without graphical dependencies (like GTK or WebKit), or just prefer sticking strictly to the terminal, you can skip compiling the GUI:
+```bash
+./install.sh --cli-only
+```
+
 `install.sh` will:
-1. Build **both** `devbind` (CLI) and `devbind-gui` (GUI) via `cargo build --release`
-2. Copy them to `~/.local/bin`
-3. Grant `CAP_NET_BIND_SERVICE` so DevBind can bind ports `80`/`443` without root
-4. Register a `.desktop` launcher for your application menu
+1. Build `devbind` (and conditionally `devbind-gui`) natively via Cargo
+2. Replace any running background or foreground services safely
+3. Copy the compiled binaries to `~/.local/bin`
+4. Grant `CAP_NET_BIND_SERVICE` so DevBind can bind ports `80`/`443` without root
+5. Hook into your `.desktop` application menu (unless `--cli-only` is passed)
 
 ### Reinstalling / Updating
 
