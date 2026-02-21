@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/Its-Satyajit/dev-bind/compare/devbind-core-v0.2.1...devbind-core-v0.2.2) (2026-02-21)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate thiserror to v2 ([#16](https://github.com/Its-Satyajit/dev-bind/issues/16)) ([d1b82f1](https://github.com/Its-Satyajit/dev-bind/commit/d1b82f1b490b23e7ab28682b753b25406ce4f034))
+* update core to support rcgen 0.14 API ([d9c990e](https://github.com/Its-Satyajit/dev-bind/commit/d9c990e78b53ea82d6a66105c8deef648c5c936c))
+
 ## [0.2.1](https://github.com/Its-Satyajit/dev-bind/compare/devbind-core-v0.2.0...devbind-core-v0.2.1) (2026-02-21)
 
 
