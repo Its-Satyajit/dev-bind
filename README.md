@@ -125,7 +125,7 @@ devbind trust
   devbind run my-blog pnpm dev --port $PORT
   ```
 
-  > 📚 **Frameworks Guide**: Different frameworks (Vite, Next.js, Django, Flask, etc.) need the port and host passed differently. See [FRAMEWORKS.md](FRAMEWORKS.md) for a complete reference and advanced configuration like Vite's `allowedHosts`.
+  > **Frameworks Guide**: Different frameworks (Vite, Next.js, Django, Flask, etc.) need the port and host passed differently. See [FRAMEWORKS.md](FRAMEWORKS.md) for a complete reference and advanced configuration like Vite's `allowedHosts`.
 
   ## Powerful GUI & CLI
 
