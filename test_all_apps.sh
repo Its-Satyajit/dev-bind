@@ -142,8 +142,17 @@ for APP_PATH in "$APPS_DIR"/*; do
         "django")
             test_app_run "$APP_NAME" python3 manage.py runserver '0.0.0.0:$PORT'
             ;;
-        "flask" | "fastapi")
-            test_app_run "$APP_NAME" python3 main.py
+        "flask")
+            test_app_run "$APP_NAME" .venv/bin/python -m flask --app main run --host 0.0.0.0 --port '$PORT'
+            ;;
+        "fastapi")
+            test_app_run "$APP_NAME" .venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port '$PORT'
+            ;;
+        "ember_js")
+            test_app_run "$APP_NAME" pnpm dlx http-server -p '$PORT'
+            ;;
+        "meteor_js")
+            test_app_run "$APP_NAME" node index.js
             ;;
         "laravel")
             test_app_run "$APP_NAME" php artisan serve --host=0.0.0.0 --port='$PORT'

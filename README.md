@@ -146,8 +146,11 @@ Different frameworks need the port and host passed differently. Here is a ready-
 | **Express.js** | `devbind run express pnpm start` | Reads `$PORT` from env |
 | **Koa** | `devbind run koa node index.js` | Reads `$PORT` from env |
 | **Plain Node.js** | `devbind run nodejs node index.js` | Reads `$PORT` from env |
+| **Ember.js** | `devbind run ember_js ember serve --port \$PORT` | Using Ember CLI |
+| **Meteor.js** | `devbind run meteor_js meteor run --port \$PORT` | Using Meteor CLI |
+| **Blazor** | `devbind run blazor dotnet run --urls http://0.0.0.0:\$PORT` | .NET Core apps |
 | **Django** | `devbind run django python manage.py runserver 0.0.0.0:\$PORT` | Bind to all interfaces |
-| **Flask** | `devbind run flask python -m flask run --host 0.0.0.0 --port \$PORT` | Bind to all interfaces |
+| **Flask** | `devbind run flask .venv/bin/python -m flask --app main run --host 0.0.0.0 --port \$PORT` | Use venv python; `--app` names your entry file |
 | **FastAPI** | `devbind run fastapi uvicorn main:app --host 0.0.0.0 --port \$PORT` | Bind to all interfaces |
 | **PHP** | `devbind run php php -S 0.0.0.0:\$PORT` | PHP built-in server |
 
@@ -171,6 +174,9 @@ Pass `--allowed-hosts` on the CLI or add to `angular.json`:
 ```bash
 devbind run myapp npm run ng -- serve --port \$PORT --host 0.0.0.0
 ```
+
+> **Mobile Frameworks Note:** Frameworks like NativeScript, Apache Cordova, React Native, and Flutter are heavily focus on mobile architectures and typically do not run a standard local web server target that makes sense for DevBind to proxy. DevBind is primarily tailored to HTTP web servers and dev tools.
+
 
 ```
 
@@ -227,6 +233,23 @@ Certs: `~/.config/devbind/certs/`
 Service: `~/.config/systemd/user/devbind.service`
 
 ## Troubleshooting
+
+### Flask — "No module named flask" or "Could not locate a Flask application"
+
+When using a `uv`-managed project named `flask`, `uv add flask` will fail because the project name shadows the package name. Use `uv pip install` instead:
+
+```bash
+# Install Flask into the venv (bypasses the project-name conflict)
+uv pip install flask
+```
+
+Flask's CLI also needs to know your entry file if it isn't the default `app.py`. Point it with `--app`:
+
+```bash
+devbind run flask .venv/bin/python -m flask --app main run --host 0.0.0.0 --port \$PORT
+```
+
+---
 
 ### Framework "Bad Gateway" or "Invalid Host" (Vite, Next.js)
 Modern frameworks strictly validate the `Host` header to prevent DNS rebinding attacks. When DevBind proxies your `.test` domain, the framework might reject it.

@@ -37,14 +37,19 @@ enum Commands {
     Uninstall,
     /// Run an app on an auto-assigned free port mapped to <name>.test
     ///
+    /// When no command is given, DevBind inspects the current directory and
+    /// automatically detects the correct dev-server command.
+    ///
     /// Examples:
-    ///   devbind run myapp next dev
-    ///   devbind run api python manage.py runserver 0.0.0.0:$PORT
-    ///   devbind run blog ruby bin/rails server -p $PORT
+    ///   devbind run myapp                              # auto-detect
+    ///   devbind run myapp next dev                     # override
+    ///   devbind run api python manage.py runserver 0.0.0.0:\$PORT
+    ///   devbind run blog rails server -p \$PORT -b 0.0.0.0
     Run {
         /// Short name mapped to <name>.test (e.g. "myapp" → myapp.test)
         name: String,
-        /// Command and arguments to execute (receives PORT env var)
+        /// Command and arguments to execute. Omit to auto-detect from the
+        /// current directory (package.json, pyproject.toml, config files…).
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<String>,
     },
@@ -171,7 +176,35 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Run { name, command } => {
-            validate_command(command)?;
+            // If the user didn't supply a command, try to auto-detect it.
+            let command: Vec<String> = if command.is_empty() {
+                let cwd = std::env::current_dir()?;
+                println!(
+                    "  🔍  No command given — detecting framework in {}…",
+                    cwd.display()
+                );
+                match devbind_core::detect::detect_command(&cwd) {
+                    Some(cmd) => {
+                        println!("  ✅  Detected: {}\n", cmd.join(" "));
+                        cmd
+                    }
+                    None => {
+                        anyhow::bail!(
+                            "Could not auto-detect a dev command for this project.\n\
+                             Please specify one explicitly:\n\
+                             \n\
+                               devbind run {} <command...>\n\
+                             \n\
+                             Tip: run 'devbind run --help' for examples.",
+                            name
+                        );
+                    }
+                }
+            } else {
+                command.clone()
+            };
+
+            validate_command(&command)?;
 
             // Load existing config
             let mut config = DevBindConfig::load(&config_path)?;

@@ -247,6 +247,8 @@ mod tests {
         pkt
     }
 
+    // ── A record (type 1) ────────────────────────────────────────────────────
+
     #[test]
     fn test_a_query_for_test_domain() {
         let query = build_test_query("myapp.test", 1);
@@ -268,6 +270,19 @@ mod tests {
     }
 
     #[test]
+    fn test_a_query_id_is_mirrored() {
+        // Build query with a distinct ID [0xDE, 0xAD]
+        let mut query = build_test_query("mirror.test", 1);
+        query[0] = 0xDE;
+        query[1] = 0xAD;
+        let resp = handle_query(&query);
+        assert_eq!(resp[0], 0xDE, "Response ID byte 0 must mirror query");
+        assert_eq!(resp[1], 0xAD, "Response ID byte 1 must mirror query");
+    }
+
+    // ── NXDOMAIN ────────────────────────────────────────────────────────────
+
+    #[test]
     fn test_nxdomain_for_non_test_domain() {
         let query = build_test_query("example.com", 1);
         let resp = handle_query(&query);
@@ -275,6 +290,33 @@ mod tests {
         let flags = u16::from_be_bytes([resp[2], resp[3]]);
         assert_eq!(flags & 0x000F, 3, "RCODE should be NXDOMAIN");
     }
+
+    #[test]
+    fn test_nxdomain_for_org_domain() {
+        let query = build_test_query("openai.org", 1);
+        let resp = handle_query(&query);
+        let flags = u16::from_be_bytes([resp[2], resp[3]]);
+        assert_eq!(flags & 0x000F, 3, "*.org must be NXDOMAIN");
+    }
+
+    #[test]
+    fn test_nxdomain_for_io_domain() {
+        let query = build_test_query("myapp.io", 1);
+        let resp = handle_query(&query);
+        let flags = u16::from_be_bytes([resp[2], resp[3]]);
+        assert_eq!(flags & 0x000F, 3, "*.io must be NXDOMAIN");
+    }
+
+    #[test]
+    fn test_nxdomain_for_test_lookalike_domain() {
+        // "nottest" must not be confused with ".test"
+        let query = build_test_query("myapp.nottest", 1);
+        let resp = handle_query(&query);
+        let flags = u16::from_be_bytes([resp[2], resp[3]]);
+        assert_eq!(flags & 0x000F, 3, "non-.test TLD must be NXDOMAIN");
+    }
+
+    // ── AAAA record (type 28) ────────────────────────────────────────────────
 
     #[test]
     fn test_aaaa_query_for_test_domain() {
@@ -290,6 +332,8 @@ mod tests {
         expected[15] = 1;
         assert_eq!(ip6_bytes, &expected);
     }
+
+    // ── Special .test forms ──────────────────────────────────────────────────
 
     #[test]
     fn test_bare_test_domain() {
@@ -310,5 +354,69 @@ mod tests {
 
         let ancount = u16::from_be_bytes([resp[6], resp[7]]);
         assert_eq!(ancount, 1, "deeply nested .test should resolve");
+    }
+
+    #[test]
+    fn test_uppercase_test_domain_resolves() {
+        // Label parsing lowercases; uppercase MYAPP.TEST must still resolve
+        let query = build_test_query("MYAPP.TEST", 1);
+        let resp = handle_query(&query);
+        let flags = u16::from_be_bytes([resp[2], resp[3]]);
+        assert_eq!(
+            flags & 0x000F,
+            0,
+            "uppercase .TEST must resolve (case-insensitive)"
+        );
+        let ancount = u16::from_be_bytes([resp[6], resp[7]]);
+        assert_eq!(ancount, 1);
+    }
+
+    // ── Unknown query types ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_mx_query_for_test_domain_returns_empty_answer() {
+        // Type 15 = MX — should get NOERROR with 0 answers
+        let query = build_test_query("myapp.test", 15);
+        let resp = handle_query(&query);
+        let flags = u16::from_be_bytes([resp[2], resp[3]]);
+        assert_eq!(flags & 0x000F, 0, "MX query must not error");
+        let ancount = u16::from_be_bytes([resp[6], resp[7]]);
+        assert_eq!(ancount, 0, "MX query on .test must return 0 answers");
+    }
+
+    #[test]
+    fn test_soa_query_for_test_domain_returns_empty_answer() {
+        // Type 6 = SOA
+        let query = build_test_query("myapp.test", 6);
+        let resp = handle_query(&query);
+        let flags = u16::from_be_bytes([resp[2], resp[3]]);
+        assert_eq!(flags & 0x000F, 0, "SOA query must be NOERROR");
+        let ancount = u16::from_be_bytes([resp[6], resp[7]]);
+        assert_eq!(ancount, 0, "SOA query on .test must return 0 answers");
+    }
+
+    // ── Malformed packet ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_truncated_packet_returns_formerr() {
+        // Anything shorter than 12 bytes is filtered in run_dns_server,
+        // but handle_query itself should return a FORMERR if question parsing fails.
+        // A 12-byte header with no question section will fail parse_question.
+        let short_pkt = vec![
+            0xCA, 0xFE, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let resp = handle_query(&short_pkt);
+        // Must return at least an 8-byte response (ID + flags + counts)
+        assert!(resp.len() >= 4, "even FORMERR must have at least ID+flags");
+        let flags = u16::from_be_bytes([resp[2], resp[3]]);
+        // RCODE should be 1 (FORMERR) when the question is missing
+        assert_eq!(
+            flags & 0x000F,
+            1,
+            "truncated question section must return FORMERR"
+        );
+        // ID must still be mirrored
+        assert_eq!(resp[0], 0xCA);
+        assert_eq!(resp[1], 0xFE);
     }
 }

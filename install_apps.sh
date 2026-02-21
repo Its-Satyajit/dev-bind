@@ -188,9 +188,20 @@ while read -r APP_NAME; do
                     pnpm dlx create-expo-app app --template blank || echo "Failed to init Expo"
                 else echo "Skipping (pnpm missing)"; fi
                 ;;
+            "Quasar Framework")
+                if command -v pnpm &> /dev/null; then
+                    pnpm dlx @quasar/cli create app --branch next --yes || echo "Failed to init Quasar"
+                else echo "Skipping (pnpm missing)"; fi
+                ;;
+            "NativeScript" | "Apache Cordova")
+                echo "Mobile framework; creating README stub."
+                mkdir app 2>/dev/null || true
+                echo "# $APP_NAME" > app/README.md
+                echo "Not HTTP-server compatible." >> app/README.md
+                ;;
             *)
                 echo "❓ Don't know how to automatically install '$APP_NAME' non-interactively. Creating empty directory."
-                mkdir app
+                mkdir app 2>/dev/null || true
                 touch app/README.md
                 ;;
         esac
