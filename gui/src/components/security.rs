@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn SecurityTab(mut error_msg: Signal<String>, mut success_msg: Signal<String>) -> Element {
     rsx! {
-        div { class: "max-w-2xl space-y-10",
+        div { class: "max-w-2xl mx-auto space-y-10",
             div { class: "terminal-block p-8 space-y-6",
                 h3 { class: "mono text-sm font-bold flex items-center gap-3",
                     span { class: "text-[var(--accent)]", "#" }

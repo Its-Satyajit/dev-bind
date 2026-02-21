@@ -23,7 +23,7 @@ pub fn MappingsTab(
     };
 
     rsx! {
-        div { class: "max-w-4xl space-y-10",
+        div { class: "max-w-4xl mx-auto space-y-10",
             div { class: "flex items-center gap-4 bg-[var(--bg-sidebar)] p-2 rounded border border-[var(--border)]",
                 span { class: "mono text-[var(--accent)] ml-4", "NEW>" }
                 input {

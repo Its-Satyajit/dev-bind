@@ -11,7 +11,7 @@ pub fn DaemonTab(
     mut success_msg: Signal<String>,
 ) -> Element {
     rsx! {
-        div { class: "max-w-2xl space-y-8",
+        div { class: "max-w-2xl mx-auto space-y-8",
 
             // Status card
             div { class: "terminal-block p-8 space-y-4",

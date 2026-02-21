@@ -7,9 +7,14 @@ mod cmd;
 #[derive(Parser, Debug)]
 #[command(name = "devbind")]
 #[command(about = "Local Dev SSL Reverse Proxy CLI", long_about = None)]
+#[command(version)]
+#[command(disable_version_flag = true)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
+    /// Show version information
+    #[arg(short = 'v', long = "version")]
+    version: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -73,20 +78,36 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let config_path = get_config_path();
 
-    match &cli.command {
-        Commands::Add { domain, port } => {
-            cmd::add::handle_add(domain.clone(), *port, &config_path)?
+    if cli.version {
+        println!(
+            "devbind-cli {} (core: {})",
+            env!("CARGO_PKG_VERSION"),
+            devbind_core::VERSION
+        );
+        return Ok(());
+    }
+
+    if let Some(command) = &cli.command {
+        match command {
+            Commands::Add { domain, port } => {
+                cmd::add::handle_add(domain.clone(), *port, &config_path)?
+            }
+            Commands::List => cmd::list::handle_list(&config_path)?,
+            Commands::Start => cmd::start::handle_start(&config_path).await?,
+            Commands::Trust => cmd::trust::handle_trust(config_path)?,
+            Commands::Untrust => cmd::trust::handle_untrust()?,
+            Commands::Install => cmd::install::handle_install()?,
+            Commands::Uninstall => cmd::install::handle_uninstall()?,
+            Commands::Run { name, command } => {
+                cmd::run::handle_run(name, command, &config_path).await?
+            }
+            Commands::Gui => cmd::gui::handle_gui()?,
         }
-        Commands::List => cmd::list::handle_list(&config_path)?,
-        Commands::Start => cmd::start::handle_start(&config_path).await?,
-        Commands::Trust => cmd::trust::handle_trust(config_path)?,
-        Commands::Untrust => cmd::trust::handle_untrust()?,
-        Commands::Install => cmd::install::handle_install()?,
-        Commands::Uninstall => cmd::install::handle_uninstall()?,
-        Commands::Run { name, command } => {
-            cmd::run::handle_run(name, command, &config_path).await?
-        }
-        Commands::Gui => cmd::gui::handle_gui()?,
+    } else {
+        // If no command is provided, clap would have already shown help or version if requested.
+        // However, if we reach here, it means no flags were given either.
+        use clap::CommandFactory;
+        Cli::command().print_help()?;
     }
 
     Ok(())
