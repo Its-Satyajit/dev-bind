@@ -51,6 +51,8 @@ enum Commands {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<String>,
     },
+    /// Launch the DevBind Graphical User Interface
+    Gui,
 }
 
 fn get_config_path() -> PathBuf {
@@ -84,6 +86,7 @@ async fn main() -> Result<()> {
         Commands::Run { name, command } => {
             cmd::run::handle_run(name, command, &config_path).await?
         }
+        Commands::Gui => cmd::gui::handle_gui()?,
     }
 
     Ok(())

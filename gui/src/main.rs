@@ -4,6 +4,7 @@ pub mod utils;
 
 use components::daemon::DaemonTab;
 use components::dns::DnsTab;
+use components::help::HelpTab;
 use components::mappings::MappingsTab;
 use components::security::SecurityTab;
 use devbind_core::config::DevBindConfig;
@@ -106,6 +107,7 @@ fn App() -> Element {
     let security_active = active_tab() == "security";
     let dns_active = active_tab() == "dns";
     let daemon_active = active_tab() == "daemon";
+    let help_active = active_tab() == "help";
 
     let proxy_child_start = proxy_child.clone();
     let proxy_child_stop = proxy_child.clone();
@@ -157,6 +159,12 @@ fn App() -> Element {
                             proxy_online.set(is_proxy_running());
                         },
                         "DAEMON"
+                    }
+                    button {
+                        class: if help_active { "w-full text-left px-8 py-3 bg-[var(--accent)] text-white font-medium" } else { "w-full text-left px-8 py-3 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-all text-sm" },
+                        "data-tooltip": "Get help and usage instructions",
+                        onclick: move |_| active_tab.set("help"),
+                        "HELP"
                     }
                 }
 
@@ -260,6 +268,8 @@ fn App() -> Element {
                             error_msg: error_msg,
                             success_msg: success_msg,
                         }
+                    } else if help_active {
+                        HelpTab {}
                     }
                 }
             }

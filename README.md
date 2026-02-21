@@ -156,6 +156,7 @@ devbind trust
   | `devbind start` | Start the proxy (HTTPS on 443, HTTP→HTTPS redirect on 80) |
   | `devbind add <name> <port>` | Map `<name>.test` to local `<port>` |
   | `devbind run <name> <cmd...>` | Dynamically allocate a free port, proxy HTTPS, and run `<cmd>` with `$PORT` injected |
+  | `devbind gui` | Launch the visual DevBind control panel |
   | `devbind list` | Show all active domain mappings |
   | `devbind trust` | Install Root CA into system & browser trust stores |
   | `devbind untrust` | Remove Root CA from all trust stores |
