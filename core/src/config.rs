@@ -3,14 +3,14 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DevBindConfig {
     pub proxy: ProxyConfig,
     pub routes: Vec<RouteConfig>,
     pub ui: UIConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct ProxyConfig {
     pub port_http: u16,
@@ -26,14 +26,16 @@ impl Default for ProxyConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(default)]
 pub struct RouteConfig {
     pub domain: String,
     pub port: u16,
+    #[serde(default)]
+    pub ephemeral: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(default)]
 pub struct UIConfig {
     // Current UI configuration is system-synced (Light/Dark Breeze)
@@ -69,4 +71,41 @@ impl DevBindConfig {
         let content = toml::to_string_pretty(self)?;
         fs::write(path, content).with_context(|| format!("Failed to write config to {:?}", path))
     }
+
+    /// Add a route (used for permanent routes).
+    pub fn add_route(&mut self, domain: String, port: u16) {
+        if let Some(route) = self.routes.iter_mut().find(|r| r.domain == domain) {
+            route.port = port;
+            route.ephemeral = false;
+        } else {
+            self.routes.push(RouteConfig {
+                domain,
+                port,
+                ephemeral: false,
+            });
+        }
+    }
+
+    /// Add an ephemeral route (used for devbind run).
+    pub fn add_ephemeral_route(&mut self, domain: String, port: u16) {
+        if let Some(route) = self.routes.iter_mut().find(|r| r.domain == domain) {
+            route.port = port;
+            route.ephemeral = true;
+        } else {
+            self.routes.push(RouteConfig {
+                domain,
+                port,
+                ephemeral: true,
+            });
+        }
+    }
+
+    /// Remove a route by domain name.
+    pub fn remove_route(&mut self, domain: &str) {
+        self.routes.retain(|r| r.domain != domain);
+    }
 }
+
+#[cfg(test)]
+#[path = "config_tests.rs"]
+mod tests;

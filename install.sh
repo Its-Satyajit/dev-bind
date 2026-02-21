@@ -2,17 +2,17 @@
 
 set -e
 
-echo "🚀 Installing DevBind..."
+echo "[START] Installing DevBind..."
 
 # Ensure ~/.local/bin exists
 mkdir -p ~/.local/bin
 
 # Build the workspace in release mode
-echo "📦 Building Release binaries (this may take a few minutes)..."
+echo "[PKG] Building Release binaries (this may take a few minutes)..."
 cargo build --release
 
 # Copy binaries to ~/.local/bin
-echo "📋 Copying binaries to ~/.local/bin..."
+echo "[INFO] Copying binaries to ~/.local/bin..."
 cp target/release/devbind-cli ~/.local/bin/devbind
 cp target/release/devbind-gui ~/.local/bin/devbind-gui
 
@@ -22,10 +22,10 @@ chmod +x ~/.local/bin/devbind-gui
 
 # Allow binding to 443 without root (if setcap is available)
 if command -v setcap &> /dev/null; then
-    echo "🔐 Granting CAP_NET_BIND_SERVICE to DevBind CLI..."
-    sudo setcap 'cap_net_bind_service=+ep' ~/.local/bin/devbind || echo "⚠️  Failed to setcap. You might need to run proxy via sudo for privileged ports."
+    echo "[SEC] Granting CAP_NET_BIND_SERVICE to DevBind CLI..."
+    sudo setcap 'cap_net_bind_service=+ep' ~/.local/bin/devbind || echo "[WARN]  Failed to setcap. You might need to run proxy via sudo for privileged ports."
 else
-    echo "⚠️  setcap not found. Binding to low ports (like 443) will require sudo."
+    echo "[WARN]  setcap not found. Binding to low ports (like 443) will require sudo."
 fi
 
 # Optional: Create a .desktop file so it appears in app menus
@@ -43,5 +43,5 @@ Type=Application
 Categories=Development;Utility;
 EOF
 
-echo "✅ DevBind is installed!"
-echo "➡️  You can now run 'devbind' from your terminal or launch 'DevBind' from your app launcher."
+echo "[OK] DevBind is installed!"
+echo "[GO]  You can now run 'devbind' from your terminal or launch 'DevBind' from your app launcher."

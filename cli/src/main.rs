@@ -1,10 +1,8 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use devbind_core::config::{DevBindConfig, RouteConfig};
-use devbind_core::hosts::HostsManager;
-use devbind_core::proxy::ProxyServer;
 use std::path::PathBuf;
-use tracing::{error, info, warn};
+
+mod cmd;
 
 #[derive(Parser, Debug)]
 #[command(name = "devbind")]
@@ -18,19 +16,43 @@ struct Cli {
 enum Commands {
     /// Add a new domain to port mapping
     Add {
-        /// The domain name (e.g., app.dev.local)
+        /// The domain name (e.g., myapp.test)
         domain: String,
         /// The local port your service listens on (e.g., 3000)
         port: u16,
     },
     /// List all configured mappings
     List,
-    /// Start the reverse proxy (stub for now)
+    /// Start the reverse proxy (with embedded DNS server)
     Start,
     /// Install DevBind Root CA into system and browser trust stores
     Trust,
     /// Uninstall DevBind Root CA from system and browser trust stores
     Untrust,
+    /// Install DNS integration (systemd-resolved drop-in for .test domains)
+    Install,
+    /// Uninstall DNS integration (remove systemd-resolved drop-in)
+    Uninstall,
+    /// Run an app on an auto-assigned free port mapped to <name>.test
+    ///
+    /// When no command is given, DevBind inspects the current directory and
+    /// automatically detects the correct dev-server command.
+    ///
+    /// Examples:
+    ///   devbind run myapp                              # auto-detect
+    ///   devbind run myapp next dev                     # override
+    ///   devbind run api python manage.py runserver 0.0.0.0:$PORT
+    ///   devbind run blog rails server -p $PORT -b 0.0.0.0
+    Run {
+        /// Short name mapped to <name>.test (e.g. "myapp" → myapp.test)
+        name: String,
+        /// Command and arguments to execute. Omit to auto-detect from the
+        /// current directory (package.json, pyproject.toml, config files…).
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
+    /// Launch the DevBind Graphical User Interface
+    Gui,
 }
 
 fn get_config_path() -> PathBuf {
@@ -53,89 +75,18 @@ async fn main() -> Result<()> {
 
     match &cli.command {
         Commands::Add { domain, port } => {
-            let mut domain = domain.clone();
-            if !domain.ends_with(".local") {
-                domain.push_str(".local");
-                info!("Automatically appended .local to domain: {}", domain);
-            }
-
-            let mut config = DevBindConfig::load(&config_path)?;
-
-            // Allow updating existing port if it already exists
-            if let Some(route) = config.routes.iter_mut().find(|r| r.domain == domain) {
-                route.port = *port;
-                info!("Updated {} to port {}", domain, port);
-            } else {
-                config.routes.push(RouteConfig {
-                    domain: domain.clone(),
-                    port: *port,
-                });
-                info!("Added {} to port {}", domain, port);
-            }
-
-            // Sync with hosts file
-            let hosts_path = PathBuf::from("/etc/hosts");
-            let manager = HostsManager::new(&hosts_path);
-            let domains: Vec<String> = config.routes.iter().map(|r| r.domain.clone()).collect();
-
-            if let Err(e) = manager.update_routes(&domains) {
-                warn!(
-                    "Failed to update /etc/hosts (try running with sudo?): {}",
-                    e
-                );
-            } else {
-                info!("Successfully updated /etc/hosts");
-            }
-
-            config.save(&config_path)?;
+            cmd::add::handle_add(domain.clone(), *port, &config_path)?
         }
-        Commands::List => {
-            let config = DevBindConfig::load(&config_path)?;
-            println!(
-                "DevBind Configuration (Proxy Port: {}):",
-                config.proxy.port_https
-            );
-            println!("{:-<40}", "");
-            println!("{:<25} | {:<8}", "Domain", "Port");
-            println!("{:-<40}", "");
-            if config.routes.is_empty() {
-                println!("  (no routes configured)");
-            } else {
-                for route in &config.routes {
-                    println!("{:<25} | {:<8}", route.domain, route.port);
-                }
-            }
+        Commands::List => cmd::list::handle_list(&config_path)?,
+        Commands::Start => cmd::start::handle_start(&config_path).await?,
+        Commands::Trust => cmd::trust::handle_trust(config_path)?,
+        Commands::Untrust => cmd::trust::handle_untrust()?,
+        Commands::Install => cmd::install::handle_install()?,
+        Commands::Uninstall => cmd::install::handle_uninstall()?,
+        Commands::Run { name, command } => {
+            cmd::run::handle_run(name, command, &config_path).await?
         }
-        Commands::Start => {
-            let config = DevBindConfig::load(&config_path)?;
-            info!(
-                "Starting DevBind proxy on port {}...",
-                config.proxy.port_https
-            );
-
-            let proxy = ProxyServer::new(config);
-            let mut config_dir = config_path.clone();
-            config_dir.pop(); // Remove config.toml to get the dir
-
-            if let Err(e) = proxy.start(config_dir).await {
-                error!("Proxy server terminated with error: {:?}", e);
-            }
-        }
-        Commands::Trust => {
-            let mut config_dir = config_path.clone();
-            config_dir.pop();
-
-            info!("Initiating Root CA trust installation...");
-            if let Err(e) = devbind_core::trust::install_root_ca(&config_dir) {
-                error!("Failed to install trust: {}", e);
-            }
-        }
-        Commands::Untrust => {
-            info!("Initiating Root CA trust removal...");
-            if let Err(e) = devbind_core::trust::uninstall_root_ca() {
-                error!("Failed to uninstall trust: {}", e);
-            }
-        }
+        Commands::Gui => cmd::gui::handle_gui()?,
     }
 
     Ok(())

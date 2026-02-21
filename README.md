@@ -1,8 +1,8 @@
 # DevBind: Local Development Reverse Proxy with Automatic HTTPS
 
-**DevBind** is a high-performance, secure local development reverse proxy written in Rust. It eliminates the friction of modern local development by mapping custom `.local` domains to your dev server ports with **Automatic HTTPS** — no more browser security warnings, no manual certificate management, and no `/etc/hosts` headaches.
+**DevBind** is a high-performance, secure local development reverse proxy written in Rust. It eliminates the friction of modern local development by mapping custom `.test` domains to your dev server ports with **Automatic HTTPS** — no more browser security warnings, no manual certificate management, and no `/etc/hosts` headaches.
 
-![DevBind Mappings Interface - easily manage your local domains](images/mapping_screen.png)
+![DevBind Mappings Interface - easily manage your local domains](images/gui_mapping_screen.png)
 
 ## Why DevBind?
 
@@ -10,15 +10,19 @@ Modern web development requires HTTPS, but setting it up locally is a nightmare.
 
 | The Old Way | The DevBind Way |
 | :--- | :--- |
-| ❌ Manual certificate generation with `openssl` | ✅ **Automatic TLS** for every `.local` domain |
-| ❌ Importing Root CAs into every browser manually | ✅ **One-click trust** for system and browser stores |
-| ❌ Manually editing `/etc/hosts` for every new project | ✅ **O(1) Domain Routing** managed via CLI or GUI |
-| ❌ Scary "Your connection is not private" warnings | ✅ **Green locks** and valid HTTPS everywhere |
+| **[NO]** Manual certificate generation with `openssl` | **[YES]** **Automatic TLS** for every `.test` domain |
+| **[NO]** Importing Root CAs into every browser manually | **[YES]** **One-click trust** for system and browser stores |
+| **[NO]** Manually editing `/etc/hosts` for every new project | **[YES]** **Zero-Config DNS** resolution managed by DevBind |
+| **[NO]** Scary "Your connection is not private" warnings | **[YES]** **Green locks** and valid HTTPS everywhere |
+
+![Green Lock LocalHTTPS Verification Example 1](images/browser_https___app.test.png)
+![Green Lock LocalHTTPS Verification Example 2](images/browser_https___nextjsapp.test.png)
 
 ## Key Features
 
 - **Instant HTTPS Everywhere** — Automatically generates and signs per-domain certificates using an in-memory CA. Zero disk I/O after the first handshake.
-- **Frictionless Domain Mapping** — Map `myapp.local` → `localhost:3000` in seconds.
+- **Frictionless Domain Mapping** — Map `myapp.test` → `localhost:3000` in seconds.
+- **Ephemeral Run Environment** — Launch apps with `devbind run` to automatically assign a free port, inject `$PORT`, and register transient `.test` HTTPS routes with zero permanent config.
 - **Enterprise-Grade Routing** — `HashMap`-based O(1) lookups ensure your local environment never slows down, even with hundreds of domains.
 - **Smart Hot-Reloading** — Config reloads only when needed (at most every 5s), preserving performance.
 - **Native Streaming Proxy** — Efficiently streams response bodies directly — no RAM buffering or latency.
@@ -27,19 +31,26 @@ Modern web development requires HTTPS, but setting it up locally is a nightmare.
 - **Background Daemon** — Runs as a standard systemd user service for seamless autostart without needing root.
 - **Hybrid Interface** — Choose between a high-performance CLI or a beautiful Dioxus-powered GUI.
 
-## Requirements
+## System Requirements
 
-Install `libnss3-tools` for browser trust management:
+DevBind is built deeply into the Linux networking stack for a seamless, zero-config experience.
+
+- **Supported OS**: Linux (Tested on CachyOS, Arch, Manjaro, Ubuntu, Debian, Pop!_OS)
+- **Init System**: `systemd` (Required for background daemon management)
+- **Network Manager**: `NetworkManager` (Required for zero-config DNS resolution using `dnsmasq` integration)
+- **Privilege Escalation**: A working `polkit` agent (Required for GUI root operations like `pkexec`)
+
+### Dependencies
+
+Install `nss` and build essentials for compiling DevBind:
 
 ```bash
-# Arch / Manjaro
-sudo pacman -S nss
+# Arch / Manjaro / CachyOS
+sudo pacman -S nss base-devel openssl
 
 # Debian / Ubuntu / Pop!_OS
-sudo apt install libnss3-tools
+sudo apt install libnss3-tools build-essential libssl-dev pkg-config
 ```
-
-A working `polkit` agent is required for GUI privilege escalation (`pkexec`).
 
 ## Installation
 
@@ -49,11 +60,18 @@ cd dev-bind
 ./install.sh
 ```
 
+**Headless Edition (CLI Only):**
+If you are running on a server without graphical dependencies (like GTK or WebKit), or just prefer sticking strictly to the terminal, you can skip compiling the GUI:
+```bash
+./install.sh --cli-only
+```
+
 `install.sh` will:
-1. Build **both** `devbind` (CLI) and `devbind-gui` (GUI) via `cargo build --release`
-2. Copy them to `~/.local/bin`
-3. Grant `CAP_NET_BIND_SERVICE` so DevBind can bind ports `80`/`443` without root
-4. Register a `.desktop` launcher for your application menu
+1. Build `devbind` (and conditionally `devbind-gui`) natively via Cargo
+2. Replace any running background or foreground services safely
+3. Copy the compiled binaries to `~/.local/bin`
+4. Grant `CAP_NET_BIND_SERVICE` so DevBind can bind ports `80`/`443` without root
+5. Hook into your `.desktop` application menu (unless `--cli-only` is passed)
 
 ### Reinstalling / Updating
 
@@ -86,8 +104,8 @@ devbind untrust
 rm -f ~/.local/bin/devbind ~/.local/bin/devbind-gui
 rm -f ~/.local/share/applications/devbind.desktop
 
-# 4. (Optional) Remove config, certificates and hosts entries
-devbind-gui  # or: open /etc/hosts and remove the DevBind block manually
+# 4. (Optional) Remove config and certificates
+devbind uninstall # remove DNS integration
 rm -rf ~/.config/devbind
 ```
 
@@ -100,98 +118,100 @@ devbind-gui
 # — or use the CLI —
 
 # 1. Add a domain mapping
-devbind add myapp 3000        # maps myapp.local → 127.0.0.1:3000
+devbind add myapp 3000        # maps myapp.test → 127.0.0.1:3000
 
 # 2. Start the proxy
 devbind start
 
-# 3. Install the Root CA so browsers trust your certs
+# 3. Install DNS routing & Root CA (one-time setup)
+devbind install
 devbind trust
 
-# 4. Open https://myapp.local in your browser
-```
+# 4. Open https://myapp.test in your browser
 
-## Powerful GUI & CLI
+  ### Ephemeral App Execution — `devbind run`
 
-DevBind provides the best of both worlds: a minimalist CLI for automation and a premium GUI for visual management.
+  `devbind run` is the fastest way to expose any local dev server under instant HTTPS. It:
+  - Picks a **free random port** automatically
+  - Injects `$PORT`, `$HOST`, and `$DEVBIND_DOMAIN` into the subprocess environment
+  - Registers a transient `.test` HTTPS route that is **cleaned up automatically** when the app exits
 
-### Domain Mappings
-Add, view, and remove your `domain → port` mappings. Domains are clickable, opening your secure local site instantly in your default browser.
+  ```bash
+  devbind run <name> <cmd...>
+  # Example:
+  devbind run my-blog pnpm dev --port $PORT
+  ```
 
-![Mappings Screen - visualize and manage your local domains](images/mapping_screen.png)
+  > **Frameworks Guide**: Different frameworks (Vite, Next.js, Django, Flask, etc.) need the port and host passed differently. See [FRAMEWORKS.md](FRAMEWORKS.md) for a complete reference and advanced configuration like Vite's `allowedHosts`.
 
-### Hosts File Editor
-Directly view and edit `/etc/hosts` without leaving the app. Changes are written safely via `pkexec`.
+  ## Powerful GUI & CLI
 
-![Hosts File Screen - safe and easy editing of system host files](images/hostfile_screen.png)
+  DevBind provides the best of both worlds: a minimalist CLI for automation and a premium GUI for visual management.
 
-### SSL Trust Center
-The "holy grail" of local dev. Install your Root CA into system and browser trust stores with a single click.
+  ### Domain Mappings
+  Add, view, and remove your `domain → port` mappings. Domains are clickable, opening your secure local site instantly in your default browser.
 
-![SSL Trust Screen - manage your local Certificate Authority trust](images/ssl_screen.png)
+  ![Mappings Screen - visualize and manage your local domains](images/gui_mapping_screen.png)
 
-### Background Daemon Management
-Turn DevBind into a background service that just works. No long-running terminal tabs required.
+  ### Smart DNS & SSL Management
+  Check the status of the DevBind local DNS resolver and install the local Root CA in seconds, so you never see another browser security warning.
 
-![Daemon Screen - manage the background process for DevBind](images/demon_sereen.png)
+  ![DNS Screen - manage DNS integration](images/gui_dns_screen.png)
+  ![SSL Trust Screen - manage root CA](images/gui_ssl_trust_screen.png)
 
-| Action | Description |
-|---|---|
-| **Install Daemon** | Sets up the `systemd` user service unit |
-| **Start/Stop** | Precise control over the background process |
-| **Proxy Status** | Live status indicator (checks port 443 in real-time) |
+  ### Background Daemon Management
+  Turn DevBind into a background service that just works. No long-running terminal tabs required.
 
-### CLI Quick Reference
+  ![Daemon Screen - manage the background process for DevBind](images/gui_daemon_screen.png)
 
-![DevBind CLI Interface examples](images/cli.png)
+  | Action | Description |
+  |---|---|
+  | **Install Daemon** | Sets up the `systemd` user service unit |
+  | **Start/Stop** | Precise control over the background process |
+  | **Proxy Status** | Live status indicator (checks port 443 in real-time) |
 
-| Command | Description |
-|---|---|
-| `devbind start` | Start the proxy (HTTPS on 443, HTTP→HTTPS redirect on 80) |
-| `devbind add <name> <port>` | Map `<name>.local` to local `<port>` |
-| `devbind list` | Show all active domain mappings |
-| `devbind trust` | Install Root CA into system & browser trust stores |
-| `devbind untrust` | Remove Root CA from all trust stores |
+  ### CLI Quick Reference
 
-## Architecture
+  ![DevBind CLI Interface examples](images/command_devbind.png)
 
-```
-Browser → 127.0.0.1:443 (TLS) → DevBind proxy → 127.0.0.1:<port> (local app)
-              ↑
-        SNI-based cert resolution
-        (in-memory cache → disk fallback → generate & sign)
-```
+  | Command | Description |
+  |---|---|
+  | `devbind start` | Start the proxy (HTTPS on 443, HTTP→HTTPS redirect on 80) |
+  | `devbind add <name> <port>` | Map `<name>.test` to local `<port>` |
+  | `devbind run <name> <cmd...>` | Dynamically allocate a free port, proxy HTTPS, and run `<cmd>` with `$PORT` injected |
+  | `devbind gui` | Launch the visual DevBind control panel |
+  | `devbind list` | Show all active domain mappings |
 
-- **`core`** — proxy engine, cert manager, hosts manager, config, CA trust
-- **`cli`** — thin CLI wrapper around `core`
-- **`gui`** — Dioxus desktop GUI
+  ![Listing CLI active domains](images/command_devbind_list.png)
 
-Config: `~/.config/devbind/config.toml`
-Certs: `~/.config/devbind/certs/`
-Service: `~/.config/systemd/user/devbind.service`
+  | `devbind trust` | Install Root CA into system & browser trust stores |
+  | `devbind untrust` | Remove Root CA from all trust stores |
 
-## Troubleshooting
+  ## Architecture
 
-### Permission Denied on port 80/443
-`install.sh` grants `CAP_NET_BIND_SERVICE` via `setcap`. If it failed:
-```bash
-sudo setcap 'cap_net_bind_service=+ep' ~/.local/bin/devbind
-```
+  ```
+  Browser → 127.0.0.1:443 (TLS) → DevBind proxy → 127.0.0.1:<port> (local app)
+                ↑
+          SNI-based cert resolution
+          (in-memory CA → generated on fly)
 
-### Browser shows "Your connection is not private"
-1. Run `devbind trust` or use **SSL TRUST → INSTALL TRUST** in the GUI
-2. Ensure `libnss3-tools` is installed
-3. Restart your browser
+  DevBind includes an embedded DNS server on `127.0.2.1:53` which `systemd-resolved` forwards `*.test` queries to.
+  ```
 
-### `DNS_PROBE_FINISHED_NXDOMAIN`
-DevBind writes to `/etc/hosts` automatically. If a VPN or network manager overwrites it, re-run `devbind add` or restart the proxy.
+  - **`core`** — proxy engine, cert manager, hosts manager, config, CA trust
+  - **`cli`** — thin CLI wrapper around `core`
+  - **`gui`** — Dioxus desktop GUI
 
-### Proxy not starting as a daemon
-Ensure `systemd --user` is running in your session:
-```bash
-systemctl --user status
-```
+  Config: `~/.config/devbind/config.toml`
+  Certs: `~/.config/devbind/certs/`
+  Service: `~/.config/systemd/user/devbind.service`
 
-## License
+  ## Troubleshooting
 
-MIT — see [LICENSE](LICENSE).
+  Having issues with "Bad Gateway", `nss3-tools`, background daemon, or connecting to frameworks?
+
+  > **Troubleshooting Guide**: See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions to the most common configuration and connectivity issues.
+
+  ## License
+
+  MIT — see [LICENSE](LICENSE).
