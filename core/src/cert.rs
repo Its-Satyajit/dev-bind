@@ -27,7 +27,7 @@ impl CertManager {
         }
     }
 
-    fn get_root_ca(&self) -> Result<rcgen::Certificate> {
+    fn get_root_ca(&self) -> Result<(rcgen::KeyPair, String)> {
         let ca_cert_path = self.certs_dir.join("devbind-rootCA.crt");
         let ca_key_path = self.certs_dir.join("devbind-rootCA.key");
 
@@ -37,11 +37,7 @@ impl CertManager {
                 .map_err(|e| anyhow::anyhow!("Failed parsing root key: {}", e))?;
 
             let cert_pem = std::fs::read_to_string(&ca_cert_path)?;
-            let params = rcgen::CertificateParams::from_ca_cert_pem(&cert_pem, key_pair)
-                .map_err(|e| anyhow::anyhow!("Failed parsing root cert: {}", e))?;
-
-            return rcgen::Certificate::from_params(params)
-                .map_err(|e| anyhow::anyhow!("Failed restoring root cert: {}", e));
+            return Ok((key_pair, cert_pem));
         }
 
         // Generate a new Root CA
@@ -55,18 +51,18 @@ impl CertManager {
             .distinguished_name
             .push(rcgen::DnType::OrganizationName, "DevBind Proxy");
 
-        let cert = rcgen::Certificate::from_params(params)
+        let key_pair = rcgen::KeyPair::generate()?;
+        let cert = params
+            .self_signed(&key_pair)
             .map_err(|e| anyhow::anyhow!("Failed generating root cert: {}", e))?;
 
-        let cert_pem = cert
-            .serialize_pem()
-            .map_err(|e| anyhow::anyhow!("Failed signing root cert: {}", e))?;
-        let key_pem = cert.serialize_private_key_pem();
+        let cert_pem = cert.pem();
+        let key_pem = key_pair.serialize_pem();
 
-        std::fs::write(&ca_cert_path, cert_pem)?;
+        std::fs::write(&ca_cert_path, &cert_pem)?;
         write_private_key(&ca_key_path, key_pem.as_bytes())?;
 
-        Ok(cert)
+        Ok((key_pair, cert_pem))
     }
 
     /// Returns a `CertifiedKey` for the given domain.
@@ -91,22 +87,29 @@ impl CertManager {
             let key_bytes = std::fs::read(&key_path).context("Failed to read key")?;
             (cert_bytes, key_bytes)
         } else {
-            let ca_cert = self.get_root_ca()?;
+            let (ca_key, ca_cert_pem) = self.get_root_ca()?;
+            let ca_issuer = rcgen::Issuer::from_ca_cert_pem(&ca_cert_pem, &ca_key)
+                .map_err(|e| anyhow::anyhow!("Failed to create CA issuer: {}", e))?;
 
             let mut params: rcgen::CertificateParams = Default::default();
-            params.subject_alt_names = vec![rcgen::SanType::DnsName(domain.to_string())];
+            params.subject_alt_names = vec![rcgen::SanType::DnsName(
+                domain
+                    .to_string()
+                    .try_into()
+                    .map_err(|e| anyhow::anyhow!("Invalid DNS name: {}", e))?,
+            )];
             params.distinguished_name = rcgen::DistinguishedName::new();
             params
                 .distinguished_name
                 .push(rcgen::DnType::CommonName, domain);
 
-            let child_cert = rcgen::Certificate::from_params(params)
+            let key_pair = rcgen::KeyPair::generate()?;
+            let child_cert = params
+                .signed_by(&key_pair, &ca_issuer)
                 .map_err(|e| anyhow::anyhow!("Failed to build child certificate: {}", e))?;
 
-            let cert_der = child_cert
-                .serialize_der_with_signer(&ca_cert)
-                .map_err(|e| anyhow::anyhow!("Cert CA serialize error: {}", e))?;
-            let key_der = child_cert.serialize_private_key_der();
+            let cert_der = child_cert.der().to_vec();
+            let key_der = key_pair.serialize_der();
 
             std::fs::write(&cert_path, &cert_der)?;
             write_private_key(&key_path, &key_der)?;
