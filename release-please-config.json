@@ -1,0 +1,20 @@
+{
+	"packages": {
+		"cli": {
+			"release-type": "rust",
+			"package-name": "devbind-cli",
+			"changelog-path": "CHANGELOG.md"
+		},
+		"core": {
+			"release-type": "rust",
+			"package-name": "devbind-core",
+			"changelog-path": "CHANGELOG.md"
+		},
+		"gui": {
+			"release-type": "rust",
+			"package-name": "devbind-gui",
+			"changelog-path": "CHANGELOG.md"
+		}
+	},
+	"$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}

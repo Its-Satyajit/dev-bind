@@ -112,176 +112,79 @@ devbind trust
 
 # 4. Open https://myapp.test in your browser
 
-### Ephemeral App Execution — `devbind run`
+  ### Ephemeral App Execution — `devbind run`
 
-`devbind run` is the fastest way to expose any local dev server under instant HTTPS. It:
-- Picks a **free random port** automatically
-- Injects `$PORT`, `$HOST`, and `$DEVBIND_DOMAIN` into the subprocess environment
-- Registers a transient `.test` HTTPS route that is **cleaned up automatically** when the app exits
+  `devbind run` is the fastest way to expose any local dev server under instant HTTPS. It:
+  - Picks a **free random port** automatically
+  - Injects `$PORT`, `$HOST`, and `$DEVBIND_DOMAIN` into the subprocess environment
+  - Registers a transient `.test` HTTPS route that is **cleaned up automatically** when the app exits
 
-```bash
-devbind run <name> <cmd...>
-# Example:
-devbind run my-blog pnpm dev --port \$PORT
-```
-
-#### Framework-Specific Commands
-
-Different frameworks need the port and host passed differently. Here is a ready-to-use reference for all major frameworks:
-
-| Framework | Command | Notes |
-|---|---|---|
-| **React** (Vite) | `devbind run react pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
-| **Vue.js** (Vite) | `devbind run vuejs pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
-| **Svelte** (Vite) | `devbind run svelte pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
-| **Solid.js** (Vite) | `devbind run solidjs pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
-| **Lit** (Vite) | `devbind run lit pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
-| **Preact** (Vite) | `devbind run preact pnpm dev --port \$PORT --host` | Vite needs `--host` for IPv4 binding |
-| **Next.js** | `devbind run nextjs pnpm dev` | Works automatically |
-| **Nuxt.js** | `devbind run nuxtjs pnpm dev` | Works automatically |
-| **Angular** | `devbind run angular npm run ng serve --port \$PORT --host 0.0.0.0` | Needs `--host 0.0.0.0` |
-| **Astro** | `devbind run astro pnpm dev --port \$PORT --host` | Vite-based, needs `--host` |
-| **Remix** (React Router) | `devbind run remix pnpm dev --port \$PORT` | Reads PORT from env |
-| **NestJS** | `devbind run nestjs pnpm nest start --port \$PORT` | Needs `--port` flag |
-| **Express.js** | `devbind run express pnpm start` | Reads `$PORT` from env |
-| **Koa** | `devbind run koa node index.js` | Reads `$PORT` from env |
-| **Plain Node.js** | `devbind run nodejs node index.js` | Reads `$PORT` from env |
-| **Ember.js** | `devbind run ember_js ember serve --port \$PORT` | Using Ember CLI |
-| **Meteor.js** | `devbind run meteor_js meteor run --port \$PORT` | Using Meteor CLI |
-| **Blazor** | `devbind run blazor dotnet run --urls http://0.0.0.0:\$PORT` | .NET Core apps |
-| **Django** | `devbind run django python manage.py runserver 0.0.0.0:\$PORT` | Bind to all interfaces |
-| **Flask** | `devbind run flask .venv/bin/python -m flask --app main run --host 0.0.0.0 --port \$PORT` | Use venv python; `--app` names your entry file |
-| **FastAPI** | `devbind run fastapi uvicorn main:app --host 0.0.0.0 --port \$PORT` | Bind to all interfaces |
-| **PHP** | `devbind run php php -S 0.0.0.0:\$PORT` | PHP built-in server |
-
-> **Note:** The `--host` flag is required for Vite-based frameworks because Vite defaults to IPv6-only (`::1`), while DevBind proxies to IPv4 `127.0.0.1`. Without `--host`, you will get a *Bad Gateway* error.
-
-#### Allowing Your `.test` Domain (Vite)
-
-Vite 5+ validates the `Host` header by default. Add your domain to `vite.config.js/ts`:
-
-```javascript
-export default defineConfig({
-  server: {
-    allowedHosts: ['react.test', 'myapp.test'], // your devbind domain(s)
-  }
-})
-```
-
-#### Allowing Your `.test` Domain (Angular)
-
-Pass `--allowed-hosts` on the CLI or add to `angular.json`:
-```bash
-devbind run myapp npm run ng -- serve --port \$PORT --host 0.0.0.0
-```
-
-> **Mobile Frameworks Note:** Frameworks like NativeScript, Apache Cordova, React Native, and Flutter are heavily focus on mobile architectures and typically do not run a standard local web server target that makes sense for DevBind to proxy. DevBind is primarily tailored to HTTP web servers and dev tools.
-
-
-```
-
-## Powerful GUI & CLI
-
-DevBind provides the best of both worlds: a minimalist CLI for automation and a premium GUI for visual management.
-
-### Domain Mappings
-Add, view, and remove your `domain → port` mappings. Domains are clickable, opening your secure local site instantly in your default browser.
-
-![Mappings Screen - visualize and manage your local domains](images/mapping_screen.png)
-
-### Background Daemon Management
-Turn DevBind into a background service that just works. No long-running terminal tabs required.
-
-![Daemon Screen - manage the background process for DevBind](images/demon_sereen.png)
-
-| Action | Description |
-|---|---|
-| **Install Daemon** | Sets up the `systemd` user service unit |
-| **Start/Stop** | Precise control over the background process |
-| **Proxy Status** | Live status indicator (checks port 443 in real-time) |
-
-### CLI Quick Reference
-
-![DevBind CLI Interface examples](images/cli.png)
-
-| Command | Description |
-|---|---|
-| `devbind start` | Start the proxy (HTTPS on 443, HTTP→HTTPS redirect on 80) |
-| `devbind add <name> <port>` | Map `<name>.test` to local `<port>` |
-| `devbind run <name> <cmd...>` | Dynamically allocate a free port, proxy HTTPS, and run `<cmd>` with `$PORT` injected |
-| `devbind list` | Show all active domain mappings |
-| `devbind trust` | Install Root CA into system & browser trust stores |
-| `devbind untrust` | Remove Root CA from all trust stores |
-
-## Architecture
-
-```
-Browser → 127.0.0.1:443 (TLS) → DevBind proxy → 127.0.0.1:<port> (local app)
-              ↑
-        SNI-based cert resolution
-        (in-memory CA → generated on fly)
-
-DevBind includes an embedded DNS server on `127.0.2.1:53` which `systemd-resolved` forwards `*.test` queries to.
-```
-
-- **`core`** — proxy engine, cert manager, hosts manager, config, CA trust
-- **`cli`** — thin CLI wrapper around `core`
-- **`gui`** — Dioxus desktop GUI
-
-Config: `~/.config/devbind/config.toml`
-Certs: `~/.config/devbind/certs/`
-Service: `~/.config/systemd/user/devbind.service`
-
-## Troubleshooting
-
-### Flask — "No module named flask" or "Could not locate a Flask application"
-
-When using a `uv`-managed project named `flask`, `uv add flask` will fail because the project name shadows the package name. Use `uv pip install` instead:
-
-```bash
-# Install Flask into the venv (bypasses the project-name conflict)
-uv pip install flask
-```
-
-Flask's CLI also needs to know your entry file if it isn't the default `app.py`. Point it with `--app`:
-
-```bash
-devbind run flask .venv/bin/python -m flask --app main run --host 0.0.0.0 --port \$PORT
-```
-
----
-
-### Framework "Bad Gateway" or "Invalid Host" (Vite, Next.js)
-Modern frameworks strictly validate the `Host` header to prevent DNS rebinding attacks. When DevBind proxies your `.test` domain, the framework might reject it.
-- **Vite (React/Vue/Svelte)**: Vite binds to `localhost` and `::1` (IPv6) by default. You must pass `--host` to bind to IPv4 so DevBind can reach it. You also need to whitelist `.test` domains in `vite.config.js`:
-  ```javascript
-  export default defineConfig({
-    server: { allowedHosts: ['react.test'] }
-  })
+  ```bash
+  devbind run <name> <cmd...>
+  # Example:
+  devbind run my-blog pnpm dev --port $PORT
   ```
-  *Example:* `devbind run react pnpm dev --port $PORT --host`
-- **Next.js**: Automatically works, but you may see a CLI warning. To silence it, add `allowedDevOrigins: ["*.test"]` to your Next config's experimental features.
 
-### Permission Denied on port 80/443
-`install.sh` grants `CAP_NET_BIND_SERVICE` via `setcap`. If it failed:
-```bash
-sudo setcap 'cap_net_bind_service=+ep' ~/.local/bin/devbind
-```
+  > 📚 **Frameworks Guide**: Different frameworks (Vite, Next.js, Django, Flask, etc.) need the port and host passed differently. See [FRAMEWORKS.md](FRAMEWORKS.md) for a complete reference and advanced configuration like Vite's `allowedHosts`.
 
-### Browser shows "Your connection is not private"
-1. Run `devbind trust` or use **SSL TRUST → INSTALL TRUST** in the GUI
-2. Ensure `libnss3-tools` is installed
-3. Restart your browser
+  ## Powerful GUI & CLI
 
-### `DNS_PROBE_FINISHED_NXDOMAIN`
-DevBind uses a NetworkManager dummy interface to resolve `*.test` domains cleanly. If resolving fails, make sure you ran `devbind install`. If a restrictive VPN ignores system resolvers, you may need to manually forward `*.test` queries to `127.0.2.1:53`.
+  DevBind provides the best of both worlds: a minimalist CLI for automation and a premium GUI for visual management.
 
-### Proxy not starting as a daemon
-Ensure `systemd --user` is running in your session:
-```bash
-systemctl --user status
-```
+  ### Domain Mappings
+  Add, view, and remove your `domain → port` mappings. Domains are clickable, opening your secure local site instantly in your default browser.
 
-## License
+  ![Mappings Screen - visualize and manage your local domains](images/mapping_screen.png)
 
-MIT — see [LICENSE](LICENSE).
+  ### Background Daemon Management
+  Turn DevBind into a background service that just works. No long-running terminal tabs required.
+
+  ![Daemon Screen - manage the background process for DevBind](images/demon_sereen.png)
+
+  | Action | Description |
+  |---|---|
+  | **Install Daemon** | Sets up the `systemd` user service unit |
+  | **Start/Stop** | Precise control over the background process |
+  | **Proxy Status** | Live status indicator (checks port 443 in real-time) |
+
+  ### CLI Quick Reference
+
+  ![DevBind CLI Interface examples](images/cli.png)
+
+  | Command | Description |
+  |---|---|
+  | `devbind start` | Start the proxy (HTTPS on 443, HTTP→HTTPS redirect on 80) |
+  | `devbind add <name> <port>` | Map `<name>.test` to local `<port>` |
+  | `devbind run <name> <cmd...>` | Dynamically allocate a free port, proxy HTTPS, and run `<cmd>` with `$PORT` injected |
+  | `devbind list` | Show all active domain mappings |
+  | `devbind trust` | Install Root CA into system & browser trust stores |
+  | `devbind untrust` | Remove Root CA from all trust stores |
+
+  ## Architecture
+
+  ```
+  Browser → 127.0.0.1:443 (TLS) → DevBind proxy → 127.0.0.1:<port> (local app)
+                ↑
+          SNI-based cert resolution
+          (in-memory CA → generated on fly)
+
+  DevBind includes an embedded DNS server on `127.0.2.1:53` which `systemd-resolved` forwards `*.test` queries to.
+  ```
+
+  - **`core`** — proxy engine, cert manager, hosts manager, config, CA trust
+  - **`cli`** — thin CLI wrapper around `core`
+  - **`gui`** — Dioxus desktop GUI
+
+  Config: `~/.config/devbind/config.toml`
+  Certs: `~/.config/devbind/certs/`
+  Service: `~/.config/systemd/user/devbind.service`
+
+  ## Troubleshooting
+
+  Having issues with "Bad Gateway", `nss3-tools`, background daemon, or connecting to frameworks?
+
+  > 🛠️ **Troubleshooting Guide**: See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions to the most common configuration and connectivity issues.
+
+  ## License
+
+  MIT — see [LICENSE](LICENSE).
