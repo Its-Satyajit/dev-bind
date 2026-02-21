@@ -738,7 +738,7 @@ dependencies = [
 
 [[package]]
 name = "devbind-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "devbind-core"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "devbind-gui"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "devbind-core",

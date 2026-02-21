@@ -11,10 +11,33 @@ mkdir -p ~/.local/bin
 echo "[PKG] Building Release binaries (this may take a few minutes)..."
 cargo build --release
 
+if systemctl --user is-active --quiet devbind.service 2>/dev/null; then
+    echo "[INFO] Stopping active DevBind background service..."
+    systemctl --user stop devbind.service || true
+    WAS_RUNNING=1
+else
+    WAS_RUNNING=0
+fi
+
+if pgrep -x devbind >/dev/null || pgrep -x devbind-gui >/dev/null; then
+    echo "[INFO] Terminating running DevBind processes..."
+    pkill -x devbind || true
+    pkill -x devbind-gui || true
+    sleep 1 # wait for processes to exit
+fi
+
+
+
 # Copy binaries to ~/.local/bin
 echo "[INFO] Copying binaries to ~/.local/bin..."
+rm -f ~/.local/bin/devbind ~/.local/bin/devbind-gui
 cp target/release/devbind-cli ~/.local/bin/devbind
 cp target/release/devbind-gui ~/.local/bin/devbind-gui
+
+if [ "$WAS_RUNNING" -eq 1 ]; then
+    echo "[INFO] Restarting DevBind background service..."
+    systemctl --user start devbind.service || true
+fi
 
 # Ensure executable permissions
 chmod +x ~/.local/bin/devbind
