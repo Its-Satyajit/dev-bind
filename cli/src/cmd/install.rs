@@ -5,7 +5,7 @@ pub fn handle_install() -> Result<()> {
     info!("Installing DNS integration for .test domains...");
     match devbind_core::setup::install_dns(devbind_core::dns::DNS_LISTEN_ADDR) {
         Ok(()) => {
-            println!("  ✅  DNS integration installed!");
+            println!("  [OK]  DNS integration installed!");
             println!("      All *.test domains will resolve to 127.0.2.1");
             println!("      when DevBind is running (devbind start).");
             println!();
@@ -25,7 +25,7 @@ pub fn handle_uninstall() -> Result<()> {
     info!("Removing DNS integration...");
     match devbind_core::setup::uninstall_dns() {
         Ok(()) => {
-            println!("  ✅  DNS integration removed.");
+            println!("  [OK]  DNS integration removed.");
             println!("      .test domains will no longer auto-resolve.");
         }
         Err(e) => {

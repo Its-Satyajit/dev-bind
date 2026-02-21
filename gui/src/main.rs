@@ -224,10 +224,10 @@ fn App() -> Element {
                     }
                     div { class: "flex gap-4 mono text-[10px]",
                         if !success_msg().is_empty() {
-                            span { class: "text-green-500", "✔ {success_msg()}" }
+                            span { class: "text-green-500", "[OK] {success_msg()}" }
                         }
                         if !error_msg().is_empty() {
-                            span { class: "text-red-500", "✘ {error_msg()}" }
+                            span { class: "text-red-500", "[ERROR] {error_msg()}" }
                         }
                     }
                 }

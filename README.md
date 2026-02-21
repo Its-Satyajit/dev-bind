@@ -10,10 +10,10 @@ Modern web development requires HTTPS, but setting it up locally is a nightmare.
 
 | The Old Way | The DevBind Way |
 | :--- | :--- |
-| ❌ Manual certificate generation with `openssl` | ✅ **Automatic TLS** for every `.test` domain |
-| ❌ Importing Root CAs into every browser manually | ✅ **One-click trust** for system and browser stores |
-| ❌ Manually editing `/etc/hosts` for every new project | ✅ **Zero-Config DNS** resolution managed by DevBind |
-| ❌ Scary "Your connection is not private" warnings | ✅ **Green locks** and valid HTTPS everywhere |
+| **[NO]** Manual certificate generation with `openssl` | **[YES]** **Automatic TLS** for every `.test` domain |
+| **[NO]** Importing Root CAs into every browser manually | **[YES]** **One-click trust** for system and browser stores |
+| **[NO]** Manually editing `/etc/hosts` for every new project | **[YES]** **Zero-Config DNS** resolution managed by DevBind |
+| **[NO]** Scary "Your connection is not private" warnings | **[YES]** **Green locks** and valid HTTPS everywhere |
 
 ## Key Features
 
@@ -183,7 +183,7 @@ devbind trust
 
   Having issues with "Bad Gateway", `nss3-tools`, background daemon, or connecting to frameworks?
 
-  > 🛠️ **Troubleshooting Guide**: See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions to the most common configuration and connectivity issues.
+  > **Troubleshooting Guide**: See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for solutions to the most common configuration and connectivity issues.
 
   ## License
 

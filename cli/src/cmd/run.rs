@@ -9,12 +9,12 @@ pub async fn handle_run(name: &str, command: &[String], config_path: &PathBuf) -
     let command: Vec<String> = if command.is_empty() {
         let cwd = std::env::current_dir()?;
         println!(
-            "  🔍  No command given — detecting framework in {}…",
+            "  [?]  No command given — detecting framework in {}…",
             cwd.display()
         );
         match devbind_core::detect::detect_command(&cwd) {
             Some(cmd) => {
-                println!("  ✅  Detected: {}\n", cmd.join(" "));
+                println!("  [OK]  Detected: {}\n", cmd.join(" "));
                 cmd
             }
             None => {
@@ -48,10 +48,10 @@ pub async fn handle_run(name: &str, command: &[String], config_path: &PathBuf) -
     }
 
     println!(
-        "\n  🔗  {} → http://127.0.0.1:{} (proxied at https://{})\n",
+        "\n  [LINK]  {} → http://127.0.0.1:{} (proxied at https://{})\n",
         session.domain, session.port, session.domain
     );
-    println!("  ▶   Launching: {}\n", command.join(" "));
+    println!("  [EXEC]   Launching: {}\n", command.join(" "));
 
     // Build env vars: inherit everything, then override/add ours
     let env_vars = session.env_vars();
@@ -122,7 +122,7 @@ pub async fn handle_run(name: &str, command: &[String], config_path: &PathBuf) -
     };
 
     // Always clean up, regardless of how the process ended
-    println!("\n  🧹  Cleaning up {}...", session.domain);
+    println!("\n  [CLEAN]  Cleaning up {}...", session.domain);
 
     // Remove ephemeral route from config
     let mut config = DevBindConfig::load(config_path).unwrap_or_default();
@@ -131,7 +131,7 @@ pub async fn handle_run(name: &str, command: &[String], config_path: &PathBuf) -
         warn!("Failed to remove ephemeral route from config: {}", e);
     }
 
-    println!("  ✅  {} unregistered.", session.domain);
+    println!("  [OK]  {} unregistered.", session.domain);
 
     if let Some(status) = exit_status {
         if let Some(code) = status.code() {

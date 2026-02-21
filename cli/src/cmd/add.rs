@@ -23,7 +23,7 @@ pub fn handle_add(mut domain: String, port: u16, config_path: &PathBuf) -> Resul
     }
 
     config.save(config_path)?;
-    println!("  ✅  {} → localhost:{}", domain, port);
+    println!("  [OK]  {} → localhost:{}", domain, port);
     Ok(())
 }
 
