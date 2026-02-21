@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Its-Satyajit/dev-bind/compare/devbind-core-v0.2.0...devbind-core-v0.2.1) (2026-02-21)
+
+
+### Bug Fixes
+
+* **deps:** update rust crate toml to v1 ([#17](https://github.com/Its-Satyajit/dev-bind/issues/17)) ([be9d256](https://github.com/Its-Satyajit/dev-bind/commit/be9d25651796a06e11591e9de7287d467a44e37a))
+
 ## [0.2.0](https://github.com/Its-Satyajit/dev-bind/compare/devbind-core-v0.1.0...devbind-core-v0.2.0) (2026-02-21)
 
 
