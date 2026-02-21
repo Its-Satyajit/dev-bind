@@ -3,7 +3,7 @@ use dioxus::prelude::*;
 #[component]
 pub fn HelpTab() -> Element {
     rsx! {
-        div { class: "max-w-4xl pb-10",
+        div { class: "max-w-4xl mx-auto pb-10",
             h1 { class: "text-2xl font-bold mb-8 text-white", "DevBind Help & Reference" }
 
             div { class: "space-y-10",
