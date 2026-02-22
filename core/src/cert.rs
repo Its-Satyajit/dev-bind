@@ -73,6 +73,17 @@ impl CertManager {
     /// `SniResolver::resolve` is a synchronous trait method, so this stays synchronous.
     /// The in-memory cache eliminates blocking I/O from the TLS hot path after warm-up.
     pub fn get_or_generate_cert(&self, domain: &str) -> Result<Arc<CertifiedKey>> {
+        // Only generate certs for .test domains — reject everything else at TLS level.
+        // This prevents non-.test traffic from establishing a connection and seeing
+        // DevBind's HTTP error pages (e.g. when the browser speculatively connects).
+        let domain_lower = domain.to_lowercase();
+        if !domain_lower.ends_with(".test") && domain_lower != "test" {
+            anyhow::bail!(
+                "Refusing to generate certificate for non-.test domain: {}",
+                domain
+            );
+        }
+
         // Fast path: cache hit — no disk I/O at all.
         if let Some(cached) = self.cache.get(domain) {
             return Ok(cached.clone());
