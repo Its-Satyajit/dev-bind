@@ -5,15 +5,21 @@
 //!
 //! Wire format reference: RFC 1035 §4.
 
+use crate::config::DevBindConfig;
+use std::collections::HashSet;
 use std::net::Ipv4Addr;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::net::UdpSocket;
+use tokio::sync::RwLock;
 use tracing::{error, info, trace};
 
 /// Default listen address for the DevBind DNS server.
 pub const DNS_LISTEN_ADDR: &str = "127.0.2.1:53";
 
 /// Start the DNS server. This function runs forever (call via `tokio::spawn`).
-pub async fn run_dns_server(listen_addr: &str) {
+pub async fn run_dns_server(listen_addr: &str, config_dir: PathBuf) {
     let socket = match UdpSocket::bind(listen_addr).await {
         Ok(s) => {
             info!("DevBind DNS server listening on {}", listen_addr);
@@ -24,6 +30,13 @@ pub async fn run_dns_server(listen_addr: &str) {
             return;
         }
     };
+
+    let config_path = config_dir.join("config.toml");
+    let initial_domains = load_allowed_domains(&config_path);
+    let allowed_domains: Arc<RwLock<(HashSet<String>, Instant)>> =
+        Arc::new(RwLock::new((initial_domains, Instant::now())));
+
+    const CACHE_TTL: Duration = Duration::from_secs(5);
 
     let mut buf = [0u8; 512];
     loop {
@@ -39,8 +52,27 @@ pub async fn run_dns_server(listen_addr: &str) {
             continue; // Too short for a DNS header
         }
 
+        // Refresh config only when TTL has expired — avoids per-query disk I/O.
+        let domains = {
+            let needs_refresh = {
+                let guard = allowed_domains.read().await;
+                guard.1.elapsed() > CACHE_TTL
+            };
+
+            if needs_refresh {
+                let mut guard = allowed_domains.write().await;
+                if guard.1.elapsed() > CACHE_TTL {
+                    guard.0 = load_allowed_domains(&config_path);
+                    guard.1 = Instant::now();
+                }
+                guard.0.clone()
+            } else {
+                allowed_domains.read().await.0.clone()
+            }
+        };
+
         let query = &buf[..len];
-        let response = handle_query(query);
+        let response = handle_query(query, &domains);
 
         if let Err(e) = socket.send_to(&response, src).await {
             error!("DNS send error: {}", e);
@@ -48,13 +80,24 @@ pub async fn run_dns_server(listen_addr: &str) {
     }
 }
 
+/// Helper to load explicit allowed `.test` domains from the config.
+fn load_allowed_domains(config_path: &std::path::Path) -> HashSet<String> {
+    let mut domains = HashSet::new();
+    if let Ok(config) = DevBindConfig::load(config_path) {
+        for route in config.routes {
+            domains.insert(route.domain.to_lowercase());
+        }
+    }
+    domains
+}
+
 /// Parse a DNS query and build a response.
 ///
 /// We only care about:
-/// - A (type 1) queries for `*.test` → respond with 127.0.0.1
-/// - AAAA (type 28) queries for `*.test` → respond with ::1
-/// - Everything else → NXDOMAIN
-fn handle_query(query: &[u8]) -> Vec<u8> {
+/// - A (type 1) queries for explicitly registered `*.test` domains → respond with 127.0.0.1
+/// - AAAA (type 28) queries for explicitly registered `*.test` domains → respond with ::1
+/// - Everything else (including unregistered `.test` domains) → NXDOMAIN
+fn handle_query(query: &[u8], allowed_domains: &HashSet<String>) -> Vec<u8> {
     // --- Parse header (12 bytes) ---
     let id = &query[0..2];
     let flags = u16::from_be_bytes([query[2], query[3]]);
@@ -71,7 +114,12 @@ fn handle_query(query: &[u8]) -> Vec<u8> {
 
     let is_test_domain = domain.ends_with(".test") || domain == "test";
 
-    if !is_test_domain {
+    // Only resolve explicitly registered .test domains.
+    // This prevents Chrome search domain leaks (e.g. www.shadcn.io.test)
+    // from incorrectly resolving to 127.0.0.1.
+    let is_allowed = is_test_domain && allowed_domains.contains(&domain);
+
+    if !is_allowed {
         return build_nxdomain_response(id, query, question_end);
     }
 

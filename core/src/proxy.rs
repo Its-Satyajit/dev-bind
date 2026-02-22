@@ -126,8 +126,9 @@ impl ProxyServer {
         });
 
         // Spawn the embedded DNS server for *.test resolution
-        tokio::spawn(async {
-            crate::dns::run_dns_server(crate::dns::DNS_LISTEN_ADDR).await;
+        let dns_config_dir = config_dir.clone();
+        tokio::spawn(async move {
+            crate::dns::run_dns_server(crate::dns::DNS_LISTEN_ADDR, dns_config_dir).await;
         });
 
         // Build initial route map. Reload from disk at most once every CACHE_TTL.
@@ -264,9 +265,18 @@ impl ProxyServer {
                                         .unwrap())
                                 }
                             }
+                        } else if !host.ends_with(".test") && host != "test" {
+                            // Non-.test domain reached the proxy — should not happen
+                            // normally (cert guard blocks at TLS level). Return 421 so
+                            // the browser retries on a different connection.
+                            warn!("Misdirected request for non-.test domain: '{}'", host,);
+                            Ok(Response::builder()
+                                .status(421)
+                                .body(boxed_full("Misdirected Request"))
+                                .unwrap())
                         } else {
                             warn!(
-                                "Unknown host requested: '{}'. Registered: {:?}",
+                                "Unknown .test host requested: '{}'. Registered: {:?}",
                                 host,
                                 routes.keys().collect::<Vec<_>>()
                             );

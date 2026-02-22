@@ -102,3 +102,38 @@ fn test_cert_manager_loads_existing_cert_into_cache() {
         "Manager 2 should cache the cert after loading from disk"
     );
 }
+
+#[test]
+fn test_cert_generation_rejects_non_test_domain() {
+    let temp_dir = TempDir::new().unwrap();
+    let manager = CertManager::new(temp_dir.path());
+
+    // Non-.test domains must be rejected at the cert level
+    let result = manager.get_or_generate_cert("example.com");
+    assert!(result.is_err(), "Non-.test domain should be rejected");
+
+    let result = manager.get_or_generate_cert("shadcnstudio.com");
+    assert!(result.is_err(), "Non-.test domain should be rejected");
+
+    let result = manager.get_or_generate_cert("nottest");
+    assert!(
+        result.is_err(),
+        "Domain without .test suffix should be rejected"
+    );
+}
+
+#[test]
+fn test_cert_generation_allows_test_domains() {
+    let temp_dir = TempDir::new().unwrap();
+    let manager = CertManager::new(temp_dir.path());
+
+    // .test domains must still work
+    assert!(
+        manager.get_or_generate_cert("myapp.test").is_ok(),
+        "myapp.test should be allowed"
+    );
+    assert!(
+        manager.get_or_generate_cert("deep.sub.test").is_ok(),
+        "deep.sub.test should be allowed"
+    );
+}
