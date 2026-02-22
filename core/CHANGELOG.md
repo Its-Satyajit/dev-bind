@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/Its-Satyajit/dev-bind/compare/devbind-core-v0.3.0...devbind-core-v0.3.1) (2026-02-22)
+
+
+### Bug Fixes
+
+* add stricter .test DNS/cert tests ([aed7ec3](https://github.com/Its-Satyajit/dev-bind/commit/aed7ec3ccf5d6f79ad6012707ec4247475f9dd3b))
+* add stricter .test DNS/cert tests ([991105e](https://github.com/Its-Satyajit/dev-bind/commit/991105e7cc2d4d25b657c34a99c830c37571d619))
+
 ## [0.3.0](https://github.com/Its-Satyajit/dev-bind/compare/devbind-core-v0.2.2...devbind-core-v0.3.0) (2026-02-21)
 
 
